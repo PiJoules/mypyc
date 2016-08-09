@@ -15,6 +15,9 @@ INCLUDES = -I$(INCLUDE_DIR)
 LIBS = -L$(LIB_DIR)
 override CFLAGS += -std=$(CSTANDARD) -Wall $(INCLUDES)
 
+# Valgrind
+VALGRIND_ARGS += --leak-check=yes
+
 TEST_FILE ?= samples/hello_world.pc
 
 %.o: %.c
@@ -24,5 +27,5 @@ all:
 	$(CC) $(CFLAGS) -o $(OUTPUT) $(EXE) $(OBJECTS)
 
 valgrind:
-	valgrind --leak-check=yes ./$(OUTPUT) $(TEST_FILE)
+	valgrind $(VALGRIND_ARGS) ./$(OUTPUT) $(TEST_FILE)
 
