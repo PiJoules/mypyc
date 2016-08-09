@@ -9,6 +9,7 @@
 
 // Custom stuff
 #include "io.h"
+#include "file.h"
 #include "linked_list.h"
 
 #endif

@@ -17,7 +17,8 @@ LIBS = -L$(LIB_DIR)
 override CFLAGS += -std=$(CSTANDARD) -Wall $(INCLUDES) $(LIBS)
 
 UTILS = \
-	$(LIB_DIR)/get_line.o
+	$(LIB_DIR)/get_line.o \
+	$(LIB_DIR)/file.o
 
 # Valgrind
 # --track-origins=yes if error is found
