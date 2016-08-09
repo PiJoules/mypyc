@@ -8,16 +8,18 @@ typedef struct FileIterator FileIterator;
 typedef struct File File;
 
 struct FileIterator {
-    FileIterator* next_iter;
-    char* line;
+    File* file_obj;
+    int has_next;
 };
 
 struct File {
-    FileIterator* iterator;
-    char* filename;
     FILE* file_pointer;
+    char* filename;
 };
 
+/**
+ * Create a file object.
+ */
 File* open(char* filename){
     File* file_obj = (File*)malloc(sizeof(File));
     if (!file_obj){
@@ -31,10 +33,42 @@ File* open(char* filename){
         fprintf(stderr, "Null file pointer when opening file \"%s\".\n", filename);
         exit(EXIT_FAILURE);
     }
-    file_obj->file_pointer = fp;
-    file_obj->filename = filename;
+    file_obj->file_pointer = fp;  // Save fp so can fclose easily later.
 
+    file_obj->filename = filename;
     return file_obj;
+}
+
+/**
+ * Create the file iterator.
+ */
+FileIterator* File_get_iterator(File* file_obj){
+    FileIterator* file_iter = (FileIterator*)malloc(sizeof(FileIterator));
+    if (!file_iter){
+        fprintf(stderr, "Could not malloc %zu bytes for FileIterator object.\n", sizeof(FileIterator));
+        exit(EXIT_FAILURE);
+    }
+    file_iter->file_obj = file_obj;
+
+    // Has next if we have not reached end of file.
+    file_iter->has_next = !feof(file_obj->file_pointer);
+    return file_iter;
+}
+
+/**
+ * Get file iterator value.
+ */
+char* FileIterator_next(FileIterator* iterator){
+    // Reached end of iterator
+    if (!iterator){
+        return NULL;
+    }
+
+    size_t len = 0;
+    char* line = NULL;
+    ssize_t bytes_read = getline(&line, &len, iterator->file_obj->file_pointer);
+    iterator->has_next = (bytes_read != -1);
+    return line;
 }
 
 void File_close(File* file){
@@ -57,8 +91,11 @@ int main(int argc, char* argv[]){
     File* file = open(filename);
 
     // Read lines
-    //ssize_t read_len
-    //while ((read))
+    FileIterator* iterator = File_get_iterator(file);
+    while (iterator->has_next){
+        char* line = FileIterator_next(iterator);
+        free(line);
+    }
 
     // Close file
     File_close(file);
