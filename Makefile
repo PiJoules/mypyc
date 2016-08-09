@@ -16,6 +16,7 @@ LIBS = -L$(LIB_DIR)
 override CFLAGS += -std=$(CSTANDARD) -Wall $(INCLUDES)
 
 # Valgrind
+# --track-origins=yes if error is found
 VALGRIND_ARGS += --leak-check=yes
 
 TEST_FILE ?= samples/hello_world.pc
