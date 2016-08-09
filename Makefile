@@ -2,9 +2,18 @@
 
 CC = gcc
 CFLAGS = 
-EXE = lc.c
+EXE = pc.c
 OBJECTS =
-OUTPUT = lc
+OUTPUT = pc
+
+INCLUDE_DIR = include
+
+# Compiler
+CC = gcc
+CSTANDARD = c99
+INCLUDES = -I$(INCLUDE_DIR)
+LIBS = -L$(LIB_DIR)
+override CFLAGS += -std=$(CSTANDARD) -Wall $(INCLUDES)
 
 %.o: %.c
 	$(CC) -c $(CFLAGS) -o $@ $<
