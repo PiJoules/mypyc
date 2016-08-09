@@ -8,6 +8,7 @@
 #include <string.h>
 
 // Custom stuff
+#include "io.h"
 #include "linked_list.h"
 
 #endif
