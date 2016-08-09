@@ -18,6 +18,28 @@ struct File {
 };
 
 /**
+ * Custom getline implementation.
+ */
+char* get_line(FILE* fp){
+    const size_t buffer_size = 256;
+    const char buffer[buffer_size];
+    char* line;
+
+    if (ferror(fp)){
+        fprintf(stderr, "Invalid file pointer.\n");
+        return NULL;
+    }
+    if (feof(fp)){
+        fprintf(stderr, "Reached end of file.\n");
+        return NULL;
+    }
+
+    fgets();
+
+    return line;
+}
+
+/**
  * Create a file object.
  */
 File* open(char* filename){
@@ -64,11 +86,13 @@ char* FileIterator_next(FileIterator* iterator){
         return NULL;
     }
 
-    size_t len = 0;
-    char* line = NULL;
-    ssize_t bytes_read = getline(&line, &len, iterator->file_obj->file_pointer);
+    //size_t len = 0;
+    //char* line = NULL;
+    //ssize_t bytes_read = getline(&line, &len, iterator->file_obj->file_pointer);
+    int bytes_read = 1;
     iterator->has_next = (bytes_read != -1);
-    return line;
+    //return line;
+    return NULL;
 }
 
 void File_close(File* file){
