@@ -6,10 +6,6 @@ from __future__ import print_function
 import sys
 
 
-class Rule(object):
-    pass
-
-
 class Token(object):
     pass
 
@@ -31,7 +27,16 @@ class Indentation(Token):
 
 
 class Newline(Token):
-    pass
+    def __repr__(self):
+        return "<Newline>"
+
+
+class Symbol(Token):
+    def __init__(self, char):
+        self.__char = char
+
+    def __repr__(self):
+        return "<Symbol ('{}')>".format(self.__char)
 
 
 class NoMoreLinesException(Exception):
@@ -78,10 +83,31 @@ class Lexer(object):
                 tokens.append("")
                 last_idx += 1
 
+        # Remove last empty string
         if not tokens[last_idx]:
             tokens = tokens[:-1]
 
-        return tokens
+        # Convert words to token objects
+        token_objs = []
+        i = 0
+        while i < len(tokens):
+            token = tokens[i]
+            if token.isalnum():
+                token_objs.append(Word(token))
+            elif token == "\n":
+                token_objs.append(Newline())
+            elif token == " ":
+                size = 0
+                while i < len(tokens) and tokens[i] == " ":
+                    size += 1
+                    i += 1
+                token_objs.append(Indentation(size))
+                continue
+            else:
+                token_objs.append(Symbol(token))
+            i += 1
+
+        return token_objs
 
     def __add_tokens(self):
         """Add tokens from the file to the buffer."""
@@ -107,9 +133,10 @@ class Lexer(object):
 
 
 def main():
-    lexer = Lexer(sys.argv[1])
+    filename = sys.argv[1]
+    lexer = Lexer(filename)
     for token in lexer:
-        print("'" + token + "'")
+        print("'{}'".format(token))
 
     return 0
 
