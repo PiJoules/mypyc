@@ -27,24 +27,73 @@ class Parser(object):
         assert token.chars() == "def"
 
         while tokens:
-            token = tokens.pop(0)
-            if isinstance(token, Word):
+            if isinstance(token, Word) and token.chars() == "def":
                 self.parse_def()
+
+            token = tokens.pop(0)
+
+    def parse_type(self):
+        """
+        Argument types (for now):
+        - 1 word: int, long, char, etc.
+        - 1 word followed by stars: int*, long**, char***, etc.
+        """
+        tokens = self.__tokens
+        token = tokens.pop(0)
+
+        # Word part
+        Word.check_word(token)
+        type_name = token
+
+        # Stars
+        count = 0
+        while tokens[-1] == "*":
+            count += 1
+        full_type = Word(type_name.chars() + "*"*count)
+
+        return full_type
+
+    def parse_args(self):
+        tokens = self.__tokens
+        token = tokens.pop(0)
+        while token != ")":
+            # Argument name
+            Word.check_word(token)
+            arg_name = token
+
+            Symbol.check_symbol(tokens.pop(0), ":")
+
+            # Argument type
+            arg_type = self.parse_type()
+            print(arg_type)
+
+            token = tokens.pop(0)
 
     def parse_def(self):
         """Parse function definition."""
         tokens = self.__tokens
+
+        # Get function name
         token = tokens.pop(0)
-
         assert isinstance(token, Word)
+        func_name = token
 
+        # Check parentheses
+        Symbol.check_symbol(tokens.pop(0), "(")
+
+        # Get args
+        self.parse_args()
 
 
 def main():
     filename = sys.argv[1]
     lexer = Lexer(filename)
-    for token in lexer:
+    tokens = [token for token in lexer]
+    for token in tokens:
         print("'{}'".format(token))
+
+    parser = Parser(tokens)
+    parser.parse()
 
     return 0
 

@@ -16,6 +16,12 @@ class Word(Token):
     def chars(self):
         return self.__chars
 
+    @classmethod
+    def check_word(cls, word, chars=None):
+        assert isinstance(word, cls)
+        if chars:
+            assert chars == word.chars()
+
     def __eq__(self, other):
         if not isinstance(other, Word):
             return False
@@ -57,9 +63,17 @@ class Symbol(Token):
         return self.__char
 
     def __eq__(self, other):
+        if isinstance(other, str):
+            return other == self.__char
         if not isinstance(other, Symbol):
             return False
         return self.__char == other.char()
+
+    @classmethod
+    def check_symbol(self, symbol, char=None):
+        assert isinstance(symbol, Symbol)
+        if char:
+            assert symbol.char() == char
 
 
 class NoMoreLinesException(Exception):
@@ -155,3 +169,7 @@ class Lexer(object):
     def __iter__(self):
         while self.has_next():
             yield self.next()
+
+    def tokens(self):
+        return self.__tokens
+
