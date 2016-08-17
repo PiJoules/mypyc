@@ -35,11 +35,6 @@ class Function(Variable):
         assert isinstance(kwargs["args"], list)
         super(Function, self).__init__(**kwargs)
 
-    def __eq__(self, other):
-        if not isinstance(other, Function):
-            return False
-        return self.name == other.name
-
 
 class Frame(object):
     def __init__(self, variables=None):
@@ -50,24 +45,20 @@ class Frame(object):
     def variables(self):
         return self.__variables
 
-    def append(self, item):
-        self.__variables.append(item)
-
-    def __add__(self, item):
-        if isinstance(item, list):
-            vars = item
-        elif isinstance(item, Frame):
-            vars = item.variables()
-        return Frame(variables=self.variables() + vars)
-
-    def __contains__(self, item):
-
-        if isinstance(item, (str, Word)):
-            return self.name == other
-        return self.name == other.name
+    def __add__(self, other):
+        if isinstance(other, list):
+            return Frame(self.__variables + other)
+        return Frame(self.__variables + other.variables())
 
     def __iter__(self):
         return iter(self.__variables)
+
+    def __contains__(self, item):
+        if isinstance(item, Word):
+            name = item.chars()
+        else:
+            raise TypeError("Cannot check contains for type {}".format(item.__class__))
+        return any(name == v.name for v in self.__variables)
 
 
 def load_global_frame():
@@ -159,9 +150,6 @@ class Parser(object):
         tokens = self.__tokens
         word = tokens.pop(0)
         Word.check_word(word)
-        print(word)
-        print(map(str, frame))
-        print(word in frame)
 
         # This word can be (for now) a:
         # - Function call
@@ -170,7 +158,7 @@ class Parser(object):
         if word == "def":
             func = self.parse_def(indentation_level)
         elif word in frame:
-            pass
+            print("Found existing function: {}".format(word))
         else:
             raise RuntimeError("Unknown word: {}".format(word))
 
