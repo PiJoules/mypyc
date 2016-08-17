@@ -45,6 +45,9 @@ class Frame(object):
     def variables(self):
         return self.__variables
 
+    def get(self, name):
+        return next(iter(v for v in self.__variables if v.name == name), None)
+
     def __add__(self, other):
         if isinstance(other, list):
             return Frame(self.__variables + other)
@@ -58,7 +61,7 @@ class Frame(object):
             name = item.chars()
         else:
             raise TypeError("Cannot check contains for type {}".format(item.__class__))
-        return any(name == v.name for v in self.__variables)
+        return self.get(name)
 
 
 def load_global_frame():
@@ -74,6 +77,9 @@ class Parser(object):
         self.__tokens = tokens
         self.__global_frame = load_global_frame()
 
+    def token_is_def(self, token):
+        return isinstance(token, Word) and token.chars() == "def" and isinstance(self.__tokens[0], Word)
+
     def parse_module(self, indentation_level):
         tokens = self.__tokens
         token = tokens.pop(0)
@@ -84,7 +90,7 @@ class Parser(object):
         global_frame = self.__global_frame
 
         while tokens:
-            if isinstance(token, Word) and token.chars() == "def":
+            if self.token_is_def(token):
                 self.parse_def(indentation_level, global_frame)
 
             token = tokens.pop(0)
@@ -145,6 +151,10 @@ class Parser(object):
         Newline.check_newline(tokens.pop(0))
         return args, return_type
 
+    def parse_func_call_args(self, variable):
+        tokens = self.__tokens
+        Symbol.check_symbol(tokens.pop(0), "(")
+
     def parse_body(self, indentation_level, frame):
         """Parse a body of a new frame."""
         tokens = self.__tokens
@@ -153,12 +163,21 @@ class Parser(object):
 
         # This word can be (for now) a:
         # - Function call
-        # - Variable definition
         # - Function definition
-        if word == "def":
+        # - Variable definition
+        variable = frame.get(word)
+        if self.token_is_def(word):
+            # Function definition
             func = self.parse_def(indentation_level)
-        elif word in frame:
-            print("Found existing function: {}".format(word))
+        elif variable:
+            print("Found existing function: {}".format(variable))
+            if isinstance(variable, Function):
+                # Call the function
+                # Parse the arguments
+                self.parse_func_call_args(variable)
+            else:
+                # Calling a regular variable
+                raise RuntimeError("Variable {} is not a function.".format(variable))
         else:
             raise RuntimeError("Unknown word: {}".format(word))
 
