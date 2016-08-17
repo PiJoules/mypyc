@@ -43,6 +43,12 @@ class Indentation(Token):
             return False
         return self.__size == other.size()
 
+    @classmethod
+    def check_indentation(cls, ind, size=None):
+        assert isinstance(ind, Indentation)
+        if size is not None:
+            assert ind.size() == size
+
 
 class Newline(Token):
     def __repr__(self):
@@ -50,6 +56,10 @@ class Newline(Token):
 
     def __eq__(self, other):
         return isinstance(other, Newline)
+
+    @classmethod
+    def check_newline(cls, symbol):
+        assert isinstance(symbol, Newline)
 
 
 class Symbol(Token):
@@ -70,7 +80,7 @@ class Symbol(Token):
         return self.__char == other.char()
 
     @classmethod
-    def check_symbol(self, symbol, char=None):
+    def check_symbol(cls, symbol, char=None):
         assert isinstance(symbol, Symbol)
         if char:
             assert symbol.char() == char
