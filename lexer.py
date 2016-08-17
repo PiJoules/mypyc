@@ -23,6 +23,8 @@ class Word(Token):
             assert chars == word.chars()
 
     def __eq__(self, other):
+        if isinstance(other, str):
+            return other == self.__chars
         if not isinstance(other, Word):
             return False
         return other.chars() == self.__chars

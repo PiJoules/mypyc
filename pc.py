@@ -11,8 +11,68 @@ import sys
 BASE_INDENTATION_SIZE = 4
 
 
-class Rule(object):
-    pass
+class SlotDefinedClass(object):
+    __slots__ = tuple()
+
+    def __init__(self, **kwargs):
+        for attr in self.__slots__:
+            setattr(self, attr, kwargs[attr])
+
+    def __str__(self):
+        return str({k:getattr(self, k) for k in self.__slots__})
+
+
+class Variable(SlotDefinedClass):
+    __slots__ = ("name", )
+
+
+class Function(Variable):
+    __slots__ = ("name", "return_type", "args")
+
+    def __init__(self, **kwargs):
+        assert isinstance(kwargs["name"], Word)
+        assert isinstance(kwargs["return_type"], Word)
+        assert isinstance(kwargs["args"], list)
+        super(Function, self).__init__(**kwargs)
+
+    def __eq__(self, other):
+        if not isinstance(other, Function):
+            return False
+        return self.name == other.name
+
+
+class Frame(object):
+    def __init__(self, variables=None):
+        variables = variables or []
+        assert all(isinstance(v, Variable) for v in variables)
+        self.__variables = variables
+
+    def variables(self):
+        return self.__variables
+
+    def append(self, item):
+        self.__variables.append(item)
+
+    def __add__(self, item):
+        if isinstance(item, list):
+            vars = item
+        elif isinstance(item, Frame):
+            vars = item.variables()
+        return Frame(variables=self.variables() + vars)
+
+    def __contains__(self, item):
+
+        if isinstance(item, (str, Word)):
+            return self.name == other
+        return self.name == other.name
+
+    def __iter__(self):
+        return iter(self.__variables)
+
+
+def load_global_frame():
+    printf_func = Function(name=Word("printf"), return_type=Word("void"), args=[])
+    return Frame([printf_func])
 
 
 class Parser(object):
@@ -21,6 +81,7 @@ class Parser(object):
     def __init__(self, tokens):
         assert tokens
         self.__tokens = tokens
+        self.__global_frame = load_global_frame()
 
     def parse_module(self, indentation_level):
         tokens = self.__tokens
@@ -29,9 +90,11 @@ class Parser(object):
         assert isinstance(token, Word)
         assert token.chars() == "def"
 
+        global_frame = self.__global_frame
+
         while tokens:
             if isinstance(token, Word) and token.chars() == "def":
-                self.parse_def(indentation_level)
+                self.parse_def(indentation_level, global_frame)
 
             token = tokens.pop(0)
 
@@ -91,16 +154,27 @@ class Parser(object):
         Newline.check_newline(tokens.pop(0))
         return args, return_type
 
-    def parse_body(self, indentation_level):
+    def parse_body(self, indentation_level, frame):
         """Parse a body of a new frame."""
+        tokens = self.__tokens
         word = tokens.pop(0)
         Word.check_word(word)
+        print(word)
+        print(map(str, frame))
+        print(word in frame)
 
         # This word can be (for now) a:
         # - Function call
-        # - Variable declaration/definition
+        # - Variable definition
+        # - Function definition
+        if word == "def":
+            func = self.parse_def(indentation_level)
+        elif word in frame:
+            pass
+        else:
+            raise RuntimeError("Unknown word: {}".format(word))
 
-    def parse_def(self, indentation_level):
+    def parse_def(self, indentation_level, frame):
         """Parse function definition."""
         tokens = self.__tokens
 
@@ -119,8 +193,11 @@ class Parser(object):
         Indentation.check_indentation(tokens.pop(0), BASE_INDENTATION_SIZE + indentation_level)
         indentation_level += BASE_INDENTATION_SIZE
 
-        # Parse body of def
+        # Declare function
+        func = Function(name=func_name, return_type=return_type, args=args)
 
+        # Parse body of def
+        body = self.parse_body(indentation_level, frame + [func])
 
 def main():
     filename = sys.argv[1]
