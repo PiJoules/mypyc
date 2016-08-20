@@ -11,61 +11,16 @@ from object_types import (
     StringType,
     VariableArgumentType,
 )
+from literals import StringLiteral
+from actions import (
+    Declaration,
+    FunctionDeclaration,
+    FunctionCall,
+    FunctionDefinition,
+    VariableDeclaration,
+)
 
 BASE_INDENTATION_SIZE = 4
-
-
-class Literal(SlotDefinedClass):
-    __slots__ = ()
-
-
-class StringLiteral(Literal):
-    __slots__ = ("chars", )
-
-    @classmethod
-    def from_token(cls, str_token):
-        assert isinstance(str_token, StringToken)
-        return cls(chars=str_token.chars)
-
-
-class Action(SlotDefinedClass):
-    __slots__ = ()
-
-
-class Declaration(Action):
-    """
-    Contains information about variables available in a frame.
-    - value type for variables
-    - return type + args and their types for functions
-    """
-    __slots__ = ("name", )
-
-
-class FunctionDeclaration(Declaration):
-    __slots__  = Declaration.__slots__ + ("return_type", "arg_types")
-
-
-class FunctionCall(Action):
-    __slots__ = ("args", "declaration")
-
-    @classmethod
-    def from_declaration(cls, declaration, args):
-        assert isinstance(declaration, FunctionDeclaration)
-        return cls(args=args, declaration=declaration)
-
-
-class FunctionDefinition(Action):
-    """Define an laready declared function or declare and define a new one."""
-    __slots__ = ("name", "return_type", "arg_types", "body")
-
-    @classmethod
-    def from_declaration(cls, declaration, body):
-        assert isinstance(declaration, FunctionDeclaration)
-        return cls(body=body, **declaration.json())
-
-
-class VariableDeclaration(Declaration):
-    __slots__ = Declaration.__slots__ + ("type", )
 
 
 class Frame(object):
@@ -294,3 +249,4 @@ class Parser(object):
             action = self.parse_variable(indentation_level, frame + [func])
             actions.append(action)
         return FunctionDefinition.from_declaration(func, actions)
+

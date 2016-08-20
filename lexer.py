@@ -47,7 +47,7 @@ class Lexer(object):
                     while i < len(tokens) and tokens[i] == " ":
                         size += 1
                         i += 1
-                    token_objs.append(Indentation(size))
+                    token_objs.append(Indentation(size=size))
                     continue
             elif token == "\"":
                 # Construct string literal
@@ -69,7 +69,7 @@ class Lexer(object):
                         i += 1
                 token_objs.append(StringToken(chars=str_literal))
             else:
-                token_objs.append(Symbol(token))
+                token_objs.append(Symbol(char=token))
             i += 1
         return token_objs
 

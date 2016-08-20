@@ -14,14 +14,28 @@ def contains_whitespace(s):
 
 
 class SlotDefinedClass(object):
+    # Type names.
+    # Only checks upper most type (i.e. can determine type of variable
+    # to be a list, but cannot make assertions regarding the types of the
+    # list contents.
     __slots__ = ()
 
-    # Block type
+    # Expected type for each slot
+    __types__ = ()
+
     TYPE_MEMBER = "__cls__"
 
     def __init__(self, **kwargs):
-        for attr in self.__slots__:
-            setattr(self, attr, kwargs[attr])
+        types = self.__types__
+        for i, attr in enumerate(self.__slots__):
+            v = kwargs[attr]
+            if i < len(types):
+                assert isinstance(v, types[i]), "Expected {} to be of type '{}'. Found type '{}'".format(v, types[i].__name__, type(v).__name__)
+            setattr(self, attr, v)
+
+    def dict(self):
+        """Return a shallow dictionary representation of this instance for easy kwargs unpacking."""
+        return {k: getattr(self, k) for k in self.__slots__}
 
     def json(self):
         """Produce a json serializeable version of instances of this class."""
@@ -41,6 +55,7 @@ class SlotDefinedClass(object):
         return str(self.json())
 
     def __eq__(self, other):
+        """Just check the type and each of the attributes."""
         if not isinstance(self, type(other)):
             return False
         return all(getattr(self, attr) == getattr(other, attr) for attr in self.__slots__)

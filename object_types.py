@@ -13,6 +13,7 @@ class Type(SlotDefinedClass):
 
 
 class FunctionType(Type):
+    __types__ = (Type, list)
     __slots__ = ("return_type", "arg_types")
 
 
@@ -33,20 +34,28 @@ class IntegerType(VariableType):
 
 
 class PointerType(VariableType):
+    __types__ = (Type, int)
     __slots__ = ("element_type", "depth")
 
 
 class StringType(PointerType):
-    __slots__ = ()
+    __types__ = (CharacterType, int)
+    __slots__ = PointerType.__slots__
 
     """A String is a char pointer."""
     def __init__(self):
-        self.element_type = CharacterType
-        self.depth = 1
+        super(StringType, self).__init__(
+            element_type=CharacterType(),
+            depth=1)
 
 
 class VariableArgumentType(Type):
     __slots__ = ()
+
+
+class Module(Type):
+    __types__ = (str, list)
+    __slots__ = ("name", "body")
 
 
 TYPE_TABLE = {
@@ -55,10 +64,6 @@ TYPE_TABLE = {
     "int": IntegerType,
     "...": VariableArgumentType,
 }
-
-
-class Module(Type):
-    __slots__ = ("name", "body")
 
 
 def word_to_type(word):
