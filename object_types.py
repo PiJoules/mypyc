@@ -53,7 +53,7 @@ class VariableArgumentType(Type):
     __slots__ = ()
 
 
-class Module(Type):
+class ModuleType(Type):
     __types__ = (str, list)
     __slots__ = ("name", "body")
 

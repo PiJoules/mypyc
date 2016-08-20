@@ -6,12 +6,12 @@ from object_types import (
     word_to_type,
     Type,
     FunctionType,
-    Module,
+    ModuleType,
     VoidType,
     StringType,
     VariableArgumentType,
 )
-from literals import StringLiteral
+from literals import Literal, StringLiteral
 from actions import (
     Declaration,
     FunctionDeclaration,
@@ -33,8 +33,37 @@ class Frame(object):
     def variables(self):
         return self.__variables
 
-    def get(self, name):
-        return next(iter(v for v in self.__variables if v.name == name), None)
+    def get(self, name, args=None, return_type=None):
+        decl = next(iter(v for v in self.__variables if v.name == name), None)
+        if isinstance(decl, FunctionDeclaration):
+            # Args could be literal, function, or variable
+            for i, arg in enumerate(args):
+                expected_type = decl.arg_types[i]
+
+                # Check for variable argument
+                if isinstance(expected_type, VariableArgumentType):
+                    # All remaining args provided are ok
+                    return decl
+
+                if isinstance(arg, Literal):
+                    arg_type = arg.type
+                elif isinstance(arg, FunctionDeclaration):
+                    arg_type = arg.return_type
+                elif isinstance(arg, VariableDeclaration):
+                    arg_type = arg.type
+                else:
+                    raise RuntimeError("Unknown arg type for {}".format(arg))
+
+                try:
+                    assert arg_type == expected_type
+                except AssertionError:
+                    raise AssertionError("Expected type {} for argument {}".format(type(expected_type), type(arg.type)))
+
+            return decl
+        elif isinstance(decl, VariableDeclaration):
+            return decl
+        else:
+            raise RuntimeError("Unknown type for variable {}".format(decl))
 
     def __add__(self, other):
         if isinstance(other, list):
@@ -43,13 +72,6 @@ class Frame(object):
 
     def __iter__(self):
         return iter(self.__variables)
-
-    def __contains__(self, item):
-        if isinstance(item, Word):
-            name = item.chars
-        else:
-            raise TypeError("Cannot check contains for type {}".format(item.__class__))
-        return self.get(name)
 
 
 def load_global_frame():
@@ -89,7 +111,7 @@ class Parser(object):
             if self.token_is_def(token):
                 func_def = self.parse_def(indentation_level, global_frame)
                 body.append(func_def)
-        return Module(body=body, name=module_name)
+        return ModuleType(body=body, name=module_name)
 
     def parse(self):
         """When parsing a regular file, just parsing a module."""
@@ -171,8 +193,8 @@ class Parser(object):
 
         return args
 
-    def parse_variable(self, indentation_level, frame):
-        """Parse a body of a new frame."""
+    def parse_variable(self, indentation_level, frame, expected_return_type=None):
+        """Parse an action/variable."""
         tokens = self.__tokens
         token = tokens.pop(0)
 
@@ -181,23 +203,31 @@ class Parser(object):
             # - Function call
             # - Function definition
             # - Type definition
-            word = token
-            declaration = frame.get(word)
-            if self.token_is_def(word):
+            #declaration = frame.get(token)
+            if self.token_is_def(token):
                 # Function definition
                 func = self.parse_def(indentation_level, frame)
                 return func
-            elif declaration:
-                if isinstance(declaration, FunctionDeclaration):
-                    # Call the function
-                    # Parse the arguments
-                    args = self.parse_func_call_args(frame)
-                    return FunctionCall.from_declaration(declaration, args)
-                else:
-                    # Calling a regular variable
-                    raise RuntimeError("Variable {} is not a function.".format(declaration))
+            #elif declaration:
+            elif tokens[0] == "(":
+                # Calling a function
+                args = self.parse_func_call_args(frame)
+                func_decl = frame.get(
+                    token,
+                    args=args,
+                    return_type=expected_return_type
+                )
+                return FunctionCall.from_declaration(func_decl, args)
+                #if isinstance(declaration, FunctionDeclaration):
+                #    # Call the function
+                #    # Parse the arguments
+                #    args = self.parse_func_call_args(frame)
+                #    return FunctionCall.from_declaration(declaration, args)
+                #else:
+                #    # Calling a regular variable
+                #    raise RuntimeError("Variable {} is not a function.".format(declaration))
             else:
-                raise RuntimeError("Unknown word: {}".format(word))
+                raise RuntimeError("Unknown word: {}".format(token))
         elif isinstance(token, StringToken):
             return StringLiteral.from_token(token)
         else:
