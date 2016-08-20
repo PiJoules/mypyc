@@ -14,7 +14,10 @@ def contains_whitespace(s):
 
 
 class SlotDefinedClass(object):
-    __slots__ = tuple()
+    __slots__ = ()
+
+    # Block type
+    TYPE_MEMBER = "__cls__"
 
     def __init__(self, **kwargs):
         for attr in self.__slots__:
@@ -22,7 +25,8 @@ class SlotDefinedClass(object):
 
     def json(self):
         """Produce a json serializeable version of instances of this class."""
-        d = {"type": type(self).__name__}
+        assert getattr(self, self.TYPE_MEMBER, None) is None
+        d = {self.TYPE_MEMBER: type(self).__name__}
         for k in self.__slots__:
             v = getattr(self, k)
             if isinstance(v, SlotDefinedClass):
@@ -35,3 +39,11 @@ class SlotDefinedClass(object):
 
     def __str__(self):
         return str(self.json())
+
+    def __eq__(self, other):
+        if not isinstance(self, type(other)):
+            return False
+        return all(getattr(self, attr) == getattr(other, attr) for attr in self.__slots__)
+
+    def __ne__(self, other):
+        return not (self == other)

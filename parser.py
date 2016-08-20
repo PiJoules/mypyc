@@ -3,17 +3,76 @@
 from utils import SlotDefinedClass
 from lexer import Word, Indentation, Newline, Symbol, StringToken
 from object_types import (
-    Type, FunctionType, FunctionDefinition, FunctionCall, Module
+    word_to_type,
+    Type,
+    FunctionType,
+    Module,
+    VoidType,
+    StringType,
+    VariableArgumentType,
 )
 
 BASE_INDENTATION_SIZE = 4
+
+
+class Literal(SlotDefinedClass):
+    __slots__ = ()
+
+
+class StringLiteral(Literal):
+    __slots__ = ("chars", )
+
+    @classmethod
+    def from_token(cls, str_token):
+        assert isinstance(str_token, StringToken)
+        return cls(chars=str_token.chars)
+
+
+class Action(SlotDefinedClass):
+    __slots__ = ()
+
+
+class Declaration(Action):
+    """
+    Contains information about variables available in a frame.
+    - value type for variables
+    - return type + args and their types for functions
+    """
+    __slots__ = ("name", )
+
+
+class FunctionDeclaration(Declaration):
+    __slots__  = Declaration.__slots__ + ("return_type", "arg_types")
+
+
+class FunctionCall(Action):
+    __slots__ = ("args", "declaration")
+
+    @classmethod
+    def from_declaration(cls, declaration, args):
+        assert isinstance(declaration, FunctionDeclaration)
+        return cls(args=args, declaration=declaration)
+
+
+class FunctionDefinition(Action):
+    """Define an laready declared function or declare and define a new one."""
+    __slots__ = ("name", "return_type", "arg_types", "body")
+
+    @classmethod
+    def from_declaration(cls, declaration, body):
+        assert isinstance(declaration, FunctionDeclaration)
+        return cls(body=body, **declaration.json())
+
+
+class VariableDeclaration(Declaration):
+    __slots__ = Declaration.__slots__ + ("type", )
 
 
 class Frame(object):
     """Frame of variables available in the scope of a function."""
     def __init__(self, variables=None):
         variables = variables or []
-        assert all(isinstance(v, Type) for v in variables)
+        assert all(isinstance(v, Declaration) for v in variables)
         self.__variables = variables
 
     def variables(self):
@@ -40,7 +99,11 @@ class Frame(object):
 
 def load_global_frame():
     """Create a frame of all the available functions."""
-    printf_func = FunctionType(name="printf", return_type="void", args=[])
+    printf_func = FunctionDeclaration(
+        name="printf",
+        return_type=VoidType(),
+        arg_types=[StringType(), VariableArgumentType()]
+    )
     return Frame([printf_func])
 
 
@@ -97,9 +160,9 @@ class Parser(object):
             count += 1
         full_type = type_name.chars + "*"*count
 
-        return full_type
+        return word_to_type(full_type)
 
-    def parse_def_args(self, indentation_level):
+    def parse_def_args(self):
         """Parse definition arguments."""
         tokens = self.__tokens
         token = tokens.pop(0)
@@ -112,13 +175,16 @@ class Parser(object):
 
             # Argument name
             Word.check_word(token)
-            arg_name = token
+            arg_name = token.chars
 
             Symbol.check_symbol(tokens.pop(0), ":")
 
             # Argument type
             arg_type = self.parse_type()
-            args.append(arg_type)
+
+            # Create the variable declaration
+            arg_decl = VariableDeclaration(name=arg_name, type=arg_type)
+            args.append(arg_decl)
 
             token = tokens.pop(0)
 
@@ -130,7 +196,7 @@ class Parser(object):
         Newline.check_newline(tokens.pop(0))
         return args, return_type
 
-    def parse_func_call_args(self, variable, frame):
+    def parse_func_call_args(self, frame):
         tokens = self.__tokens
         Symbol.check_symbol(tokens.pop(0), "(")
         top = tokens[0]  # Peek only
@@ -161,23 +227,24 @@ class Parser(object):
             # - Function definition
             # - Type definition
             word = token
-            variable = frame.get(word)
+            declaration = frame.get(word)
             if self.token_is_def(word):
                 # Function definition
                 func = self.parse_def(indentation_level, frame)
-            elif variable:
-                if isinstance(variable, FunctionType):
+                return func
+            elif declaration:
+                if isinstance(declaration, FunctionDeclaration):
                     # Call the function
                     # Parse the arguments
-                    args = self.parse_func_call_args(variable, frame)
-                    return FunctionCall.from_type(variable, args)
+                    args = self.parse_func_call_args(frame)
+                    return FunctionCall.from_declaration(declaration, args)
                 else:
                     # Calling a regular variable
-                    raise RuntimeError("Type {} is not a function.".format(variable))
+                    raise RuntimeError("Variable {} is not a function.".format(declaration))
             else:
                 raise RuntimeError("Unknown word: {}".format(word))
         elif isinstance(token, StringToken):
-            return token
+            return StringLiteral.from_token(token)
         else:
             raise RuntimeError("Unknown token type: {}".format(token))
 
@@ -188,20 +255,23 @@ class Parser(object):
         # Get function name
         token = tokens.pop(0)
         assert isinstance(token, Word)
-        func_name = token
+        func_name = token.chars
 
         # Check parentheses
         Symbol.check_symbol(tokens.pop(0), "(")
 
         # Get args
-        args, return_type = self.parse_def_args(indentation_level)
+        arg_types, return_type = self.parse_def_args()
 
         # Check indentation
         Indentation.check_indentation(tokens.pop(0), BASE_INDENTATION_SIZE + indentation_level)
         indentation_level += BASE_INDENTATION_SIZE
 
         # Declare function
-        func = FunctionType(name=func_name, return_type=return_type, args=args)
+        func = FunctionDeclaration(
+            name=func_name,
+            return_type=return_type,
+            arg_types=arg_types)
 
         # Parse body of def
         actions = []
@@ -223,4 +293,4 @@ class Parser(object):
             # Parse rest of body
             action = self.parse_variable(indentation_level, frame + [func])
             actions.append(action)
-        return FunctionDefinition.from_type(func, actions)
+        return FunctionDefinition.from_declaration(func, actions)

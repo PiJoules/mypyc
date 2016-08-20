@@ -4,8 +4,7 @@ from utils import SlotDefinedClass, contains_whitespace
 
 
 class Token(SlotDefinedClass):
-    def __ne__(self, other):
-        return not (self == other)
+    pass
 
 
 class StringToken(Token):
