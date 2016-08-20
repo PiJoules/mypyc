@@ -1,17 +1,28 @@
 #!/usr/bin/env python
 
 
+def contains_chars(s, chars):
+    """Checks is a string contains any character in a list of chars."""
+    return any((c in chars) for c in s)
+
+
+def contains_whitespace(s):
+    import string
+    return contains_chars(s, string.whitespace)
+
+
 class Token(object):
     def __ne__(self, other):
         return not (self == other)
 
 
-class Word(Token):
+class StringToken(Token):
+    """Series of characters."""
     def __init__(self, chars):
         self.__chars = chars
 
     def __repr__(self):
-        return "<Word ({})>".format(self.__chars)
+        return "<{} ({})>".format(type(self).__name__, self.__chars)
 
     def chars(self):
         return self.__chars
@@ -25,9 +36,19 @@ class Word(Token):
     def __eq__(self, other):
         if isinstance(other, str):
             return other == self.__chars
-        if not isinstance(other, Word):
+        if not isinstance(other, type(self)):
             return False
         return other.chars() == self.__chars
+
+    def __str__(self):
+        return self.__chars
+
+
+class Word(StringToken):
+    """Series of non-whitespace characters."""
+    def __init__(self, chars):
+        assert not contains_whitespace(chars)
+        super(Word, self).__init__(chars)
 
 
 class Indentation(Token):
@@ -51,6 +72,9 @@ class Indentation(Token):
         if size is not None:
             assert ind.size() == size
 
+    def __str__(self):
+        return " " * self.__size
+
 
 class Newline(Token):
     def __repr__(self):
@@ -62,6 +86,9 @@ class Newline(Token):
     @classmethod
     def check_newline(cls, symbol):
         assert isinstance(symbol, Newline)
+
+    def __str__(self):
+        return "\n"
 
 
 class Symbol(Token):
@@ -86,6 +113,9 @@ class Symbol(Token):
         assert isinstance(symbol, Symbol)
         if char:
             assert symbol.char() == char
+
+    def __str__(self):
+        return self.__char
 
 
 class NoMoreLinesException(Exception):
@@ -154,6 +184,25 @@ class Lexer(object):
                         i += 1
                     token_objs.append(Indentation(size))
                     continue
+            elif token == "\"":
+                # Construct string literal
+                str_literal = token
+                i += 1
+                while True:
+                    token = tokens[i]
+                    if token == "\"":
+                        # End of string literal
+                        str_literal += token
+                        break
+                    elif token == "\\":
+                        # Escaped next character
+                        str_literal += token + tokens[i + 1]
+                        i += 2
+                    else:
+                        # Regular word
+                        str_literal += token
+                        i += 1
+                token_objs.append(StringToken(str_literal))
             else:
                 token_objs.append(Symbol(token))
             i += 1

@@ -3,7 +3,7 @@
 
 from __future__ import print_function
 
-from lexer import Lexer, Word, Indentation, Newline, Symbol
+from lexer import Lexer, Word, Indentation, Newline, Symbol, StringToken
 
 import sys
 
@@ -18,22 +18,56 @@ class SlotDefinedClass(object):
         for attr in self.__slots__:
             setattr(self, attr, kwargs[attr])
 
+    def dict(self):
+        return {k:getattr(self, k) for k in self.__slots__}
+
     def __str__(self):
-        return str({k:getattr(self, k) for k in self.__slots__})
+        return str(self.dict())
 
 
 class Variable(SlotDefinedClass):
     __slots__ = ("name", )
 
 
-class Function(Variable):
+class FunctionType(Variable):
     __slots__ = ("name", "return_type", "args")
 
     def __init__(self, **kwargs):
         assert isinstance(kwargs["name"], Word)
         assert isinstance(kwargs["return_type"], Word)
         assert isinstance(kwargs["args"], list)
-        super(Function, self).__init__(**kwargs)
+        super(FunctionType, self).__init__(**kwargs)
+
+
+class FunctionDefinition(Variable):
+    __slots__ = FunctionType.__slots__ + ("body", )
+
+    @classmethod
+    def from_type(cls, func_type, body):
+        assert isinstance(func_type, FunctionType)
+        return FunctionDefinition(body=body, **func_type.dict())
+
+
+class FunctionCall(FunctionType):
+    @classmethod
+    def from_type(cls, func_type, args):
+        assert isinstance(func_type, FunctionType)
+        return FunctionCall(name=func_type.name,
+                            return_type=func_type.return_type,
+                            args=args)
+
+
+class String(Variable):
+    __slots__ = ("chars", )
+
+    def add_word(self, word):
+        self.chars += word.chars()
+
+    def add_symbol(self, symbol):
+        self.chars += word.char()
+
+    def add(self, s):
+        self.chars += str(s)
 
 
 class Frame(object):
@@ -65,7 +99,8 @@ class Frame(object):
 
 
 def load_global_frame():
-    printf_func = Function(name=Word("printf"), return_type=Word("void"), args=[])
+    """Create a frame of all the available functions."""
+    printf_func = FunctionType(name=Word("printf"), return_type=Word("void"), args=[])
     return Frame([printf_func])
 
 
@@ -78,9 +113,11 @@ class Parser(object):
         self.__global_frame = load_global_frame()
 
     def token_is_def(self, token):
+        """Check if a token is a function definition."""
         return isinstance(token, Word) and token.chars() == "def" and isinstance(self.__tokens[0], Word)
 
     def parse_module(self, indentation_level):
+        """Parse a module."""
         tokens = self.__tokens
         token = tokens.pop(0)
 
@@ -89,11 +126,12 @@ class Parser(object):
 
         global_frame = self.__global_frame
 
+        body = []
         while tokens:
             if self.token_is_def(token):
-                self.parse_def(indentation_level, global_frame)
-
-            token = tokens.pop(0)
+                func_def = self.parse_def(indentation_level, global_frame)
+                body.append(func_def)
+        return body
 
     def parse(self):
         """When parsing a regular file, just parsing a module."""
@@ -143,6 +181,7 @@ class Parser(object):
             args.append(arg_type)
 
             token = tokens.pop(0)
+
         Symbol.check_symbol(tokens.pop(0), "-")
         Symbol.check_symbol(tokens.pop(0), ">")
 
@@ -151,35 +190,56 @@ class Parser(object):
         Newline.check_newline(tokens.pop(0))
         return args, return_type
 
-    def parse_func_call_args(self, variable):
+    def parse_func_call_args(self, variable, frame):
         tokens = self.__tokens
         Symbol.check_symbol(tokens.pop(0), "(")
+        top = tokens[0]  # Peek only
 
-    def parse_body(self, indentation_level, frame):
+        args = []
+
+        while top != ")":
+            if top == ",":
+                tokens.pop(0)
+
+            # Variable or function evaluation
+            arg = self.parse_variable(None, frame)
+            args.append(arg)
+
+            top = tokens[0]
+        tokens.pop(0)
+
+        return args
+
+    def parse_variable(self, indentation_level, frame):
         """Parse a body of a new frame."""
         tokens = self.__tokens
-        word = tokens.pop(0)
-        Word.check_word(word)
+        token = tokens.pop(0)
 
-        # This word can be (for now) a:
-        # - Function call
-        # - Function definition
-        # - Variable definition
-        variable = frame.get(word)
-        if self.token_is_def(word):
-            # Function definition
-            func = self.parse_def(indentation_level)
-        elif variable:
-            print("Found existing function: {}".format(variable))
-            if isinstance(variable, Function):
-                # Call the function
-                # Parse the arguments
-                self.parse_func_call_args(variable)
+        if isinstance(token, Word):
+            # This word can be (for now) a:
+            # - Function call
+            # - Function definition
+            # - Variable definition
+            word = token
+            variable = frame.get(word)
+            if self.token_is_def(word):
+                # Function definition
+                func = self.parse_def(indentation_level, frame)
+            elif variable:
+                if isinstance(variable, FunctionType):
+                    # Call the function
+                    # Parse the arguments
+                    args = self.parse_func_call_args(variable, frame)
+                    return FunctionCall.from_type(variable, args)
+                else:
+                    # Calling a regular variable
+                    raise RuntimeError("Variable {} is not a function.".format(variable))
             else:
-                # Calling a regular variable
-                raise RuntimeError("Variable {} is not a function.".format(variable))
+                raise RuntimeError("Unknown word: {}".format(word))
+        elif isinstance(token, StringToken):
+            return token
         else:
-            raise RuntimeError("Unknown word: {}".format(word))
+            raise RuntimeError("Unknown token type: {}".format(token))
 
     def parse_def(self, indentation_level, frame):
         """Parse function definition."""
@@ -201,10 +261,30 @@ class Parser(object):
         indentation_level += BASE_INDENTATION_SIZE
 
         # Declare function
-        func = Function(name=func_name, return_type=return_type, args=args)
+        func = FunctionType(name=func_name, return_type=return_type, args=args)
 
         # Parse body of def
-        body = self.parse_body(indentation_level, frame + [func])
+        actions = []
+        action = self.parse_variable(indentation_level, frame + [func])
+        actions.append(action)
+
+        # Must be 1 newline
+        Newline.check_newline(tokens.pop(0))
+        while tokens:
+            token = tokens.pop(0)
+
+            # Any number of newlines can be followed
+            if isinstance(token, Newline):
+                continue
+
+            # Indentation must be the same
+            Indentation.check_indentation(tokens.pop(0), indentation_level)
+
+            # Parse rest of body
+            action = self.parse_variable(indentation_level, frame + [func])
+            actions.append(action)
+        return FunctionDefinition.from_type(func, actions)
+
 
 def main():
     filename = sys.argv[1]
@@ -213,11 +293,12 @@ def main():
 
     print("Tokens")
     for token in tokens:
-        print("'{}'".format(token))
+        print("'{}'".format(repr(token)))
     print("")
 
     parser = Parser(tokens)
-    parser.parse()
+    parse_tree = parser.parse()
+    print(parse_tree)
 
     return 0
 
