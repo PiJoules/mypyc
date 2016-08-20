@@ -1,121 +1,6 @@
-#!/usr/bin/env python
+#-*- coding: utf-8 -*-
 
-
-def contains_chars(s, chars):
-    """Checks is a string contains any character in a list of chars."""
-    return any((c in chars) for c in s)
-
-
-def contains_whitespace(s):
-    import string
-    return contains_chars(s, string.whitespace)
-
-
-class Token(object):
-    def __ne__(self, other):
-        return not (self == other)
-
-
-class StringToken(Token):
-    """Series of characters."""
-    def __init__(self, chars):
-        self.__chars = chars
-
-    def __repr__(self):
-        return "<{} ({})>".format(type(self).__name__, self.__chars)
-
-    def chars(self):
-        return self.__chars
-
-    @classmethod
-    def check_word(cls, word, chars=None):
-        assert isinstance(word, cls)
-        if chars:
-            assert chars == word.chars()
-
-    def __eq__(self, other):
-        if isinstance(other, str):
-            return other == self.__chars
-        if not isinstance(other, type(self)):
-            return False
-        return other.chars() == self.__chars
-
-    def __str__(self):
-        return self.__chars
-
-
-class Word(StringToken):
-    """Series of non-whitespace characters."""
-    def __init__(self, chars):
-        assert not contains_whitespace(chars)
-        super(Word, self).__init__(chars)
-
-
-class Indentation(Token):
-    def __init__(self, size):
-        self.__size = size
-
-    def __repr__(self):
-        return "<Indentation (size={})>".format(self.__size)
-
-    def size(self):
-        return self.__size
-
-    def __eq__(self, other):
-        if not isinstance(other, Indentation):
-            return False
-        return self.__size == other.size()
-
-    @classmethod
-    def check_indentation(cls, ind, size=None):
-        assert isinstance(ind, Indentation)
-        if size is not None:
-            assert ind.size() == size
-
-    def __str__(self):
-        return " " * self.__size
-
-
-class Newline(Token):
-    def __repr__(self):
-        return "<Newline>"
-
-    def __eq__(self, other):
-        return isinstance(other, Newline)
-
-    @classmethod
-    def check_newline(cls, symbol):
-        assert isinstance(symbol, Newline)
-
-    def __str__(self):
-        return "\n"
-
-
-class Symbol(Token):
-    def __init__(self, char):
-        self.__char = char
-
-    def __repr__(self):
-        return "<Symbol ('{}')>".format(self.__char)
-
-    def char(self):
-        return self.__char
-
-    def __eq__(self, other):
-        if isinstance(other, str):
-            return other == self.__char
-        if not isinstance(other, Symbol):
-            return False
-        return self.__char == other.char()
-
-    @classmethod
-    def check_symbol(cls, symbol, char=None):
-        assert isinstance(symbol, Symbol)
-        if char:
-            assert symbol.char() == char
-
-    def __str__(self):
-        return self.__char
+from tokens import StringToken, Word, Indentation, Newline, Symbol
 
 
 class NoMoreLinesException(Exception):
@@ -124,10 +9,12 @@ class NoMoreLinesException(Exception):
 
 
 class Lexer(object):
+    """Lexer for splitting the text in a file into tokens."""
     def __init__(self, filename):
         self.__filename = filename
         self.__file = open(filename, "r")
         self.__buffer = []
+        self.__tokens = []
 
     def has_next(self):
         """
@@ -143,36 +30,14 @@ class Lexer(object):
             return False
         return True
 
-    def __tokenize_line(self, line):
-        """Split a line into tokens"""
-        tokens = [""]
-        last_idx = 0
-
-        for c in line:
-            if c.isalnum():
-                # Add new char to last buffer
-                tokens[last_idx] += c
-            else:
-                # Whitespace or other
-                if not tokens[last_idx]:
-                    tokens[last_idx] = c
-                else:
-                    tokens.append(c)
-                    last_idx += 1
-                tokens.append("")
-                last_idx += 1
-
-        # Remove last empty string
-        if not tokens[last_idx]:
-            tokens = tokens[:-1]
-
-        # Convert words to token objects
+    def __token_strings_to_objs(self, tokens):
+        """Convert a list of token strings to token objects."""
         token_objs = []
         i = 0
         while i < len(tokens):
             token = tokens[i]
             if token.isalnum():
-                token_objs.append(Word(token))
+                token_objs.append(Word(chars=token))
             elif token == "\n":
                 token_objs.append(Newline())
             elif token == " ":
@@ -202,12 +67,38 @@ class Lexer(object):
                         # Regular word
                         str_literal += token
                         i += 1
-                token_objs.append(StringToken(str_literal))
+                token_objs.append(StringToken(chars=str_literal))
             else:
                 token_objs.append(Symbol(token))
             i += 1
-
         return token_objs
+
+    def __tokenize_line(self, line):
+        """Split a line into tokens."""
+        tokens = [""]
+        last_idx = 0
+
+        # Read characters at a time and form strings to be tokenized
+        for c in line:
+            if c.isalnum():
+                # Add new char to last buffer
+                tokens[last_idx] += c
+            else:
+                # Whitespace or other
+                if not tokens[last_idx]:
+                    tokens[last_idx] = c
+                else:
+                    tokens.append(c)
+                    last_idx += 1
+                tokens.append("")
+                last_idx += 1
+
+        # Remove last empty string
+        if not tokens[last_idx]:
+            tokens = tokens[:-1]
+
+        # Convert words to token objects
+        return self.__token_strings_to_objs(tokens)
 
     def __add_tokens(self):
         """Add tokens from the file to the buffer."""
@@ -228,9 +119,22 @@ class Lexer(object):
         return self.__buffer.pop(0)
 
     def __iter__(self):
-        while self.has_next():
-            yield self.next()
+        # If have explored the whole file, return an iterator for the internal
+        # token buffer.
+        if self.has_next():
+            while self.has_next():
+                token = self.next()
+                self.__tokens.append(token)
+                yield token
+        else:
+            for x in self.__tokens:
+                yield x
 
     def tokens(self):
+        """Return a complete list of all the tokens from the file."""
+        # Be sure to flush out the rest of the file if not fully explored
+        while self.has_next():
+            token = self.next()
+            self.__tokens.append(token)
         return self.__tokens
 
