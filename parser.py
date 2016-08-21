@@ -203,7 +203,6 @@ class Parser(object):
                 return FunctionCall.from_declaration(func_decl, args)
             elif token == "return":
                 # Returning a value
-                # TODO: Set the return variable as a declaration
                 return Return(decl=self.parse_variable(
                     indentation_level, frame
                 ))
@@ -211,7 +210,6 @@ class Parser(object):
                 raise RuntimeError("Unknown word: {}".format(token))
         elif isinstance(token, StringToken):
             return StringLiteral.from_token(token)
-        # TODO: Implement Number/Whole Number/Decimal literals
         elif isinstance(token, WholeNumber):
             return IntegerLiteral.from_token(token)
         else:
