@@ -10,11 +10,12 @@ def long_description():
 
 
 def packages():
-    return find_packages(include=["pc*"])
+    return find_packages(include=["pc*", "scripts*"])
 
 
 def install_requires():
-    return []
+    with open("requirements.txt", "r") as requirements:
+        return requirements.readlines()
 
 
 setup(
@@ -22,7 +23,7 @@ setup(
     version="0.0.1",
     description="Python to C",
     long_description=long_description(),
-    url="https://github.com/PiJoules/python2c",
+    url="https://github.com/PiJoules/pc",
     author="Leonard Chan",
     author_email="lchan1994@yahoo.com",
     license="Unlicense",
@@ -32,10 +33,12 @@ setup(
     keywords="python, c",
     packages=packages(),
     install_requires=install_requires(),
-    test_suit="node.collector",
+    test_suit="nose.collector",
     entry_points={
         "console_scripts": [
-            "pc=pc.pc:main",
+            "pc=scripts.main:main",
+            "lex=scripts.lex:main",
+            "parse=scripts.parse:main",
         ],
     },
 )

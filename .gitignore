@@ -2,6 +2,7 @@
 *.out
 *.o
 test_dir/
+pc-venv/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
