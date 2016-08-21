@@ -1,24 +1,10 @@
 #-*- coding: utf-8 -*-
 
 from utils import SlotDefinedClass
-from lexer import Word, Indentation, Newline, Symbol, StringToken
-from object_types import (
-    word_to_type,
-    Type,
-    FunctionType,
-    ModuleType,
-    VoidType,
-    StringType,
-    VariableArgumentType,
-)
-from literals import Literal, StringLiteral
-from actions import (
-    Declaration,
-    FunctionDeclaration,
-    FunctionCall,
-    FunctionDefinition,
-    VariableDeclaration,
-)
+from tokens import *
+from object_types import *
+from literals import *
+from actions import *
 
 BASE_INDENTATION_SIZE = 4
 
@@ -36,28 +22,31 @@ class Frame(object):
     def get(self, name, args=None, return_type=None):
         decl = next(iter(v for v in self.__variables if v.name == name), None)
         if isinstance(decl, FunctionDeclaration):
+            # TODO: Check if it is correct to check for the argument and
+            # return types when parsing. I don't think it is.
+
             # Args could be literal, function, or variable
-            for i, arg in enumerate(args):
-                expected_type = decl.arg_types[i]
+            #for i, arg in enumerate(args):
+            #    expected_type = decl.arg_types[i]
 
-                # Check for variable argument
-                if isinstance(expected_type, VariableArgumentType):
-                    # All remaining args provided are ok
-                    return decl
+            #    # Check for variable argument
+            #    if isinstance(expected_type, VariableArgumentType):
+            #        # All remaining args provided are ok
+            #        return decl
 
-                if isinstance(arg, Literal):
-                    arg_type = arg.type
-                elif isinstance(arg, FunctionDeclaration):
-                    arg_type = arg.return_type
-                elif isinstance(arg, VariableDeclaration):
-                    arg_type = arg.type
-                else:
-                    raise RuntimeError("Unknown arg type for {}".format(arg))
+            #    if isinstance(arg, Literal):
+            #        arg_type = arg.type
+            #    elif isinstance(arg, FunctionDeclaration):
+            #        arg_type = arg.return_type
+            #    elif isinstance(arg, VariableDeclaration):
+            #        arg_type = arg.type
+            #    else:
+            #        raise RuntimeError("Unknown arg type for {}".format(arg))
 
-                try:
-                    assert arg_type == expected_type
-                except AssertionError:
-                    raise AssertionError("Expected type {} for argument {}".format(type(expected_type), type(arg.type)))
+            #    try:
+            #        assert arg_type == expected_type
+            #    except AssertionError:
+            #        raise AssertionError("Expected type {} for argument {}".format(type(expected_type), type(arg.type)))
 
             return decl
         elif isinstance(decl, VariableDeclaration):
@@ -203,35 +192,30 @@ class Parser(object):
             # - Function call
             # - Function definition
             # - Type definition
-            #declaration = frame.get(token)
             if self.token_is_def(token):
                 # Function definition
                 func = self.parse_def(indentation_level, frame)
                 return func
-            #elif declaration:
             elif tokens[0] == "(":
                 # Calling a function
                 args = self.parse_func_call_args(frame)
-                func_decl = frame.get(
-                    token,
-                    args=args,
-                    return_type=expected_return_type
-                )
+                func_decl = frame.get(token)
                 return FunctionCall.from_declaration(func_decl, args)
-                #if isinstance(declaration, FunctionDeclaration):
-                #    # Call the function
-                #    # Parse the arguments
-                #    args = self.parse_func_call_args(frame)
-                #    return FunctionCall.from_declaration(declaration, args)
-                #else:
-                #    # Calling a regular variable
-                #    raise RuntimeError("Variable {} is not a function.".format(declaration))
+            elif token == "return":
+                # Returning a value
+                # TODO: Set the return variable as a declaration
+                return Return(decl=self.parse_variable(
+                    indentation_level, frame
+                ))
             else:
                 raise RuntimeError("Unknown word: {}".format(token))
         elif isinstance(token, StringToken):
             return StringLiteral.from_token(token)
+        # TODO: Implement Number/Whole Number/Decimal literals
+        elif isinstance(token, WholeNumber):
+            return IntegerLiteral.from_token(token)
         else:
-            raise RuntimeError("Unknown token type: {}".format(token))
+            raise RuntimeError("Unknown token: {}".format(token))
 
     def parse_def(self, indentation_level, frame):
         """Parse function definition."""
@@ -273,7 +257,7 @@ class Parser(object):
                 continue
 
             # Indentation must be the same
-            Indentation.check_indentation(tokens.pop(0), indentation_level)
+            Indentation.check_indentation(token, indentation_level)
 
             # Parse rest of body
             action = self.parse_variable(indentation_level, frame + [func])

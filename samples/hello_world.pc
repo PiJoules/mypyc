@@ -1,3 +1,4 @@
-def main(argc: int, argv: char**) -> void:
+def main(argc: int, argv: char**) -> int:
     printf("%s\n", "Hello world")
+    return 0
 

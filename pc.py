@@ -5,6 +5,7 @@ from __future__ import print_function
 
 from lexer import Lexer
 from parser import Parser
+from c_translator import CTranslator
 
 import sys
 import json
@@ -25,6 +26,13 @@ def main():
     parse_tree = parser.parse()
     print("Parse tree")
     print(json.dumps(parse_tree.json(), indent=4))
+    print("")
+
+    translator = CTranslator(parse_tree)
+    translation = translator.translate()
+    print("C translation")
+    print(translation)
+    print("")
 
     return 0
 

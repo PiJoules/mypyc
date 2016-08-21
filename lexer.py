@@ -1,6 +1,6 @@
 #-*- coding: utf-8 -*-
 
-from tokens import StringToken, Word, Indentation, Newline, Symbol
+from tokens import *
 
 
 class NoMoreLinesException(Exception):
@@ -36,11 +36,24 @@ class Lexer(object):
         i = 0
         while i < len(tokens):
             token = tokens[i]
-            if token.isalnum():
+            if token.isalpha():
                 token_objs.append(Word(chars=token))
+            elif token.isdigit():
+                # Try to form decimals or whoe numbers
+                # TODO: Support other numeric types in other bases
+                if tokens[i+1] == ".":
+                    assert tokens[i+2].isdigit()
+                    token_objs.append(DecimalNumber(value=float(
+                        str(token) + "." + str(tokens[i+2])
+                    )))
+                    i += 2
+                else:
+                    token_objs.append(WholeNumber(value=int(token)))
             elif token == "\n":
                 token_objs.append(Newline())
             elif token == " ":
+                # TODO: Account for tabs
+                # Combine words separated by spaces in literal strings
                 if not token_objs or isinstance(token_objs[-1], Newline):
                     # Indentation is space at start of line
                     size = 0

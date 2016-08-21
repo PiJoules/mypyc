@@ -1,5 +1,9 @@
 #-*- coding: utf-8 -*-
 
+__all__ = ("Type", "FunctionType", "VariableType", "VoidType", "CharacterType",
+           "IntegerType", "PointerType", "StringType", "VariableArgumentType",
+           "ModuleType", "word_to_type")
+
 from utils import SlotDefinedClass
 
 

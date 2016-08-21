@@ -3,3 +3,4 @@
 pc
 *.o
 *.pyc
+test/

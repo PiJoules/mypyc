@@ -51,9 +51,6 @@ class SlotDefinedClass(object):
                 d[k] = v
         return d
 
-    def __str__(self):
-        return str(self.json())
-
     def __eq__(self, other):
         """Just check the type and each of the attributes."""
         if not isinstance(self, type(other)):

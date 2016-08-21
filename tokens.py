@@ -1,5 +1,8 @@
 #-*- coding: utf-8 -*-
 
+__all__ = ("StringToken", "Word", "Indentation", "Newline", "Symbol",
+           "WholeNumber", "DecimalNumber")
+
 from utils import SlotDefinedClass, contains_whitespace
 
 
@@ -101,3 +104,32 @@ class Symbol(Token):
 
     def __str__(self):
         return self.char
+
+
+class Number(Token):
+    __types__ = (int, )
+    __slots__ = ("value", )
+
+    def __repr__(self):
+        return "<{} ({})>".format(type(self).__name__, self.value)
+
+    def __eq__(self, other):
+        if isinstance(other, (int, long, float)):
+            return self.value == other
+        if not isinstance(other, type(self)):
+            return False
+        return self.value == other.value
+
+    def __str__(self):
+        return str(self.value)
+
+
+class WholeNumber(Number):
+    __types__ = (int, )
+    __slots__ = ("value", )
+
+
+class DecimalNumber(Number):
+    __types__ = (float, )
+    __slots__ = ("value", )
+
