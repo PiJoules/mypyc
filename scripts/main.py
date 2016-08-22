@@ -4,16 +4,28 @@
 from __future__ import print_function
 
 from pc import Lexer, Parser, CTranslator
-from utils import base_arg_parser
+from utils import base_parse_args
+
+import subprocess
+import os
 
 
 def get_args():
     from argparse import ArgumentParser
     parser = ArgumentParser(description="Translate python-esque code to C.")
 
-    parser = base_arg_parser(parser=parser)
+    # C arguments
+    parser.add_argument("-c", "--compiler", default="gcc",
+                        help="Compiler to use.")
+    parser.add_argument("--std", default="c99",
+                        help="C standard.")
+    parser.add_argument("-o", "--output", type=str,
+                        help="Output executable name.")
 
-    args = parser.parse_args()
+    parser.add_argument("-p", "--print", action="store_true", default=False,
+                        help="Just print the c code.")
+
+    args = base_parse_args(parser)
     return args
 
 
@@ -33,7 +45,24 @@ def main():
 
     translator = CTranslator(parse_tree)
     translation = translator.translate()
-    print(translation)
+    if args.print:
+        print(translation)
+        return 0
+
+    # Save into c file and compile it
+    base_name, ext = os.path.splitext(filename)
+    c_file = base_name + ".c"
+    with open(c_file, "w") as f:
+        f.write(translation)
+
+    cmd = "{compiler} -std={standard} -o {output} {files}"
+    cmd = cmd.format(
+        compiler=args.compiler,
+        standard=args.std,
+        output=base_name,
+        files=" ".join([c_file])
+    )
+    assert not subprocess.check_call(cmd.split())
 
     return 0
 

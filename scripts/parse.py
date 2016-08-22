@@ -4,7 +4,7 @@
 from __future__ import print_function
 
 from pc import Lexer, Parser
-from utils import base_arg_parser
+from utils import base_parse_args
 
 import json
 
@@ -14,9 +14,7 @@ def get_args():
     parser = ArgumentParser(
         description="Print the resulting parse tree in JSON.")
 
-    parser = base_arg_parser(parser=parser)
-
-    args = parser.parse_args()
+    args = base_parse_args(parser)
     return args
 
 

@@ -4,7 +4,7 @@
 from __future__ import print_function
 
 from pc.lexer import Lexer
-from utils import base_arg_parser
+from utils import base_parse_args
 
 
 def get_args():
@@ -13,9 +13,7 @@ def get_args():
         description="Print the resulting tokens resulting from a lexical "
         "analysis of the code.")
 
-    parser = base_arg_parser(parser=parser)
-
-    args = parser.parse_args()
+    args = base_parse_args(parser)
     return args
 
 
