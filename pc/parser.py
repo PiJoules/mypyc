@@ -21,35 +21,7 @@ class Frame(object):
 
     def get(self, name, args=None, return_type=None):
         decl = next(iter(v for v in self.__variables if v.name == name), None)
-        if isinstance(decl, FunctionDeclaration):
-            # TODO: Check if it is correct to check for the argument and
-            # return types when parsing. I don't think it is.
-
-            # Args could be literal, function, or variable
-            #for i, arg in enumerate(args):
-            #    expected_type = decl.arg_types[i]
-
-            #    # Check for variable argument
-            #    if isinstance(expected_type, VariableArgumentType):
-            #        # All remaining args provided are ok
-            #        return decl
-
-            #    if isinstance(arg, Literal):
-            #        arg_type = arg.type
-            #    elif isinstance(arg, FunctionDeclaration):
-            #        arg_type = arg.return_type
-            #    elif isinstance(arg, VariableDeclaration):
-            #        arg_type = arg.type
-            #    else:
-            #        raise RuntimeError("Unknown arg type for {}".format(arg))
-
-            #    try:
-            #        assert arg_type == expected_type
-            #    except AssertionError:
-            #        raise AssertionError("Expected type {} for argument {}".format(type(expected_type), type(arg.type)))
-
-            return decl
-        elif isinstance(decl, VariableDeclaration):
+        if decl:
             return decl
         else:
             raise RuntimeError("Unknown type for variable {}".format(decl))
@@ -85,21 +57,48 @@ class Parser(object):
         """Check if a token is a function definition."""
         return isinstance(token, Word) and token.chars == "def" and isinstance(self.__tokens[0], Word)
 
+    def parse_include(self):
+        tokens = self.__tokens
+        Word.check_word(tokens.pop(0), "include")
+        left_bound = token = tokens.pop(0)
+        Symbol.check_symbol(token, "<\"")
+
+        include_name = str(tokens.pop(0))
+
+        if token == "<":
+            token = tokens.pop(0)
+            while token != ">":
+                include_name += str(token)
+                token = tokens.pop(0)
+        else:
+            token = tokens.pop(0)
+            while token != "\"":
+                include_name += str(token)
+                token = tokens.pop(0)
+        return Include(name=include_name,
+                       left_bound=str(left_bound),
+                       right_bound=str(token))
+
     def parse_module(self, indentation_level, module_name):
         """Parse a module."""
         tokens = self.__tokens
-        token = tokens.pop(0)
-
-        assert isinstance(token, Word)
-        assert token.chars == "def"
-
         global_frame = self.__global_frame
 
         body = []
         while tokens:
+            token = tokens[0]
+            if isinstance(token, Newline):
+                tokens.pop(0)
+                continue
+
             if self.token_is_def(token):
                 func_def = self.parse_def(indentation_level, global_frame)
                 body.append(func_def)
+            elif token == "include":
+                include = self.parse_include()
+                body.append(include)
+            else:
+                raise RuntimeError("Unknown token '{}'".format(token))
         return ModuleType(body=body, name=module_name)
 
     def parse(self):
@@ -218,6 +217,7 @@ class Parser(object):
     def parse_def(self, indentation_level, frame):
         """Parse function definition."""
         tokens = self.__tokens
+        Word.check_word(tokens.pop(0), "def")
 
         # Get function name
         token = tokens.pop(0)

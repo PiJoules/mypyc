@@ -1,7 +1,8 @@
 #-*- coding: utf-8 -*-
 
 __all__ = ("Action", "Declaration", "FunctionDeclaration", "FunctionCall",
-           "FunctionDefinition", "VariableDeclaration", "Return")
+           "FunctionDefinition", "VariableDeclaration", "Return",
+           "Include")
 
 from utils import SlotDefinedClass
 from object_types import Type
@@ -56,5 +57,10 @@ class VariableDeclaration(Declaration):
 class Return(Action):
     __types__ = ((Literal, Declaration), )
     __slots__ = ("decl", )
+
+
+class Include(Action):
+    __types__ = (str, str, str)
+    __slots__ = ("name", "left_bound", "right_bound")
 
 

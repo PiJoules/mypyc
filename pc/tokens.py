@@ -21,7 +21,9 @@ class StringToken(Token):
     @classmethod
     def check_word(cls, word, chars=None):
         assert isinstance(word, cls)
-        if chars:
+        if isinstance(chars, (list, tuple, set)):
+            assert word.chars in chars
+        elif chars:
             assert chars == word.chars
 
     def __eq__(self, other):
@@ -98,9 +100,14 @@ class Symbol(Token):
 
     @classmethod
     def check_symbol(cls, symbol, char=None):
-        assert isinstance(symbol, Symbol)
-        if char:
-            assert symbol.char == char
+        try:
+            assert isinstance(symbol, Symbol)
+        except:
+            raise AssertionError("{} is not of type Symbol".format(symbol))
+        if isinstance(char, str):
+            assert symbol.char in char
+        elif char:
+            assert char == symbol.char
 
     def __str__(self):
         return self.char

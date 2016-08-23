@@ -73,6 +73,13 @@ class CTranslator(object):
             ret_value=self.translate_action(ret_action.decl, 0),
         )
 
+    def translate_include(self, include):
+        return "#include {lb}{name}{rb}".format(
+            lb=include.left_bound,
+            name=include.name,
+            rb=include.right_bound,
+        )
+
     def translate_action(self, action, indentation_level):
         """Hanlde different types of actions in the body of something."""
         padding = " " * indentation_level * self.__indent_size
@@ -84,12 +91,14 @@ class CTranslator(object):
             return padding + self.translate_return(action)
         elif isinstance(action, Literal):
             return str(action)
+        elif isinstance(action, Include):
+            return self.translate_include(action)
         else:
             raise RuntimeError("Unable to handle action '{}'".format(action))
 
     def translate_module(self, module):
         lines = [self.translate_action(a, 0) for a in module.body]
-        return LINE_DELIM.join(lines)
+        return "\n".join(lines)
 
     def translate(self):
         """Return the whole resulting string of code."""

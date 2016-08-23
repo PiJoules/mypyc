@@ -3,6 +3,9 @@
 *.o
 test_dir/
 pc-venv/
+samples/*
+
+!samples/*.pc
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
