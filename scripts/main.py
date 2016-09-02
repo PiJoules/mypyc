@@ -33,14 +33,8 @@ def main():
     """Program entry point"""
     args = get_args()
     filename = args.filename
-    lexer = Lexer(filename)
-    tokens = lexer.tokens()
 
-    # TODO: Add unit tests for this function
-    #tokens = [token for token in lexer]
-    #assert tokens == lexer.tokens()
-
-    parser = Parser(tokens)
+    parser = Parser(filename)
     parse_tree = parser.parse()
 
     translator = CTranslator(parse_tree)
