@@ -22,10 +22,11 @@ def main():
     args = get_args()
 
     filename = args.filename
-    lexer = Lexer(filename)
-    tokens = lexer.tokens()
+    #lexer = Lexer(filename)
+    #tokens = lexer.tokens()
 
-    parser = Parser(tokens)
+    #parser = Parser(tokens)
+    parser = Parser(filename)
     parse_tree = parser.parse()
     print(json.dumps(parse_tree.json(), indent=4))
     return 0

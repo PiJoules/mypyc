@@ -36,8 +36,8 @@ setup(
     test_suit="nose.collector",
     entry_points={
         "console_scripts": [
-            "pc=scripts.main:main",
-            "lex=scripts.lex:main",
+            #"pc=scripts.main:main",
+            #"lex=scripts.lex:main",
             "parse=scripts.parse:main",
         ],
     },

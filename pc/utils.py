@@ -13,6 +13,24 @@ def contains_whitespace(s):
     return contains_chars(s, string.whitespace)
 
 
+def check_type(v, t):
+    assert isinstance(v, t), "Expected '{}' to be of type '{}'. Found type '{}'".format(v, t, type(v))
+
+
+def check_list(lst, t):
+    check_type(lst, list)
+    for v in lst:
+        check_type(v, t)
+
+
+def check_dict(d, key_type, val_type):
+    check_type(d, dict)
+    keys = d.keys()
+    vals = d.values()
+    check_list(keys, key_type)
+    check_list(vals, val_type)
+
+
 class SlotDefinedClass(object):
     # Type names.
     # Only checks upper most type (i.e. can determine type of variable
@@ -30,7 +48,14 @@ class SlotDefinedClass(object):
         for i, attr in enumerate(self.__slots__):
             v = kwargs[attr]
             if i < len(types):
-                assert isinstance(v, types[i]), "Expected {} to be of type '{}'. Found type '{}'".format(v, types[i].__name__, type(v).__name__)
+                t = types[i]
+                if isinstance(t, list):
+                    check_list(v, t[0])
+                elif isinstance(t, dict):
+                    check_dict(v, t.keys()[0], v.values()[0])
+                else:
+                    # Check that this property is of the specified type
+                    check_type(v, t)
             setattr(self, attr, v)
 
     def dict(self):
