@@ -38,6 +38,7 @@ setup(
         "console_scripts": [
             "pc=scripts.main:main",
             "parse=scripts.parse:main",
+            "lex=scripts.lex:main",
         ],
     },
 )

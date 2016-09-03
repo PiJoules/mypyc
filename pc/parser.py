@@ -1,23 +1,9 @@
 #-*- coding: utf-8 -*-
 
+from symbols import *
 from rules import *
-
-
-# Constants
-MACRO_START = "#"
-COLON = ":"
-NEWLINE = "\n"
-SPACE = " "
-L_PAREN = "("
-R_PAREN = ")"
-DASH = "-"
-G_THAN = ">"
-UNDERSCORE = "_"
-ASTERISK = "*"
-COMMA = ","
-D_QUOTE = "\""
-BACKSLASH = "\\"
-PERIOD = "."
+from tokens import *
+from lexer import Lexer
 
 
 # Keywords
@@ -36,122 +22,68 @@ class Parser(object):
         Args:
             indent_count [int]: Number of spaces in an indentation.
         """
-        self.__filename = filename
         self.__indent_count = indent_count
-        self.__generator = self.char_generator()
-        self.__line_no = 1
-        self.__col_no = 1
-        self.__char_buffer = ""  # Buffer used for peeking tokens
-        self.pop_without_increment()
+        self.__token_buffer = []  # Buffer used for peeking tokens
+        self.__lexer = Lexer(filename, indent_count=indent_count)
+        self.__pop_token()
 
-    def char_generator(self):
-        with open(self.__filename, "r") as f:
-            for line in f:
-                for c in line:
-                    yield c
+    def __pop_token(self):
+        if self.__token_buffer:
+            self.__token = self.__token_buffer.pop(0)
+            return
+        self.__token = self.__lexer.next_token()
 
-    def next_char(self):
-        """Pop the next char."""
-        if self.__char_buffer:
-            c = self.__char_buffer[0]
-            self.__char_buffer = self.__char_buffer[1:]
-            return c
-        return next(self.__generator, "")
 
-    def add_to_buffer(self, n=100):
-        """
-        Add up to n characters from the file.
-        Returns the number of characters added.
-        """
-        for i in xrange(n):
-            c = next(self.__generator, "")
-            if c:
-                self.__char_buffer += c
-            else:
-                return i
-        return n
+    """
+    Token checks
+    """
 
-    def pop_without_increment(self):
-        self.__token = self.next_char()
+    def __check_token(self, token_type, value=None):
+        token_type.check(self.__token, value=value)
+        self.__pop_token()
 
-    def pop_token(self):
-        if self.__token == NEWLINE:
-            self.__col_no = 1
-            self.__line_no += 1
-        else:
-            self.__col_no += 1
-        self.pop_without_increment()
+    def __check_word(self, expect=None):
+        self.__check_token(Word, value=expect)
 
-    def check_token(self, expect):
-        assert self.__token == expect, "Expected '{}' on line {}, column {}. Found '{}'.".format(expect if expect != NEWLINE else "newline", self.__line_no, self.__col_no, self.__token)
-        self.pop_token()
+    def __check_symbol(self, expect):
+        self.__check_token(Symbol, value=expect)
 
-    def check_symbol(self, expect):
-        tokens = ""
-        for i in xrange(len(expect)):
-            tokens += self.__token
-            self.pop_token()
-        assert tokens == expect, "Expected '{}' on line {}, column {}. Found '{}'.".format(expect, self.__line_no, self.__col_no, tokens)
+    def __check_newline(self):
+        self.__check_token(Newline)
 
-    def check_right_arrow(self):
+    def __check_number(self):
+        self.__check_token(Number)
+
+    def __check_indent(self):
+        self.__check_token(Indent, value=SPACE * self.__indent_count)
+
+    def __check_quote(self):
+        self.__check_token(Quote)
+
+
+
+    def __check_right_arrow(self):
         """Check that we found a left arrow."""
-        self.check_token(DASH)
-        self.check_token(G_THAN)
+        self.__check_symbol(DASH)
+        self.__check_symbol(G_THAN)
 
-    def skip_tokens(self, token):
-        while self.__token == token:
-            self.pop_token()
-
-    def skip_spaces(self):
-        """Ignore spaces. At least 1 must be given."""
-        self.skip_tokens(SPACE)
-
-    def skip_newlines(self):
-        self.skip_tokens(NEWLINE)
-
-    def check_indentation_level(self, expected_level):
-        for i in xrange(expected_level * self.__indent_count):
-            self.check_token(SPACE)
-
-    def peek_symbols(self, n):
+    def __peek_tokens(self, n):
         """
         Peek n items off the buffer, combining characters that could be
         identifiers.
         """
+        if n <= 0:
+            return []
         old_token = self.__token
-        words = []
-        word = ""
-        buff = ""  # Characters read over to store on the buffer
-        while len(words) < n and self.__token:
-            if self.__token.isalnum() or self.__token == UNDERSCORE:
-                word += self.__token
-            else:
-                if word:
-                    words.append(word)
-                    word = ""
-                if not self.__token.isspace():
-                    words.append(self.__token)
-            buff += self.__token
-            self.pop_without_increment()
+        tokens = [self.__token]
+        for i in xrange(n-1):
+            self.__pop_token()
+            tokens.append(self.__token)
 
         # Reset buffer and token
-        if buff:
-            self.__char_buffer = buff[1:] + self.__token + self.__char_buffer
+        self.__token_buffer = tokens[1:] + self.__token_buffer
         self.__token = old_token
-        return words[:n]
-
-    def peek_spaces(self):
-        """Peek at the next sequence of spaces."""
-        old_token = self.__token
-        buff = ""
-        while self.__token == SPACE and self.__token:
-            buff += self.__token
-            self.pop_without_increment()
-
-        if buff:
-            self.__char_buffer = buff[1:] + self.__token + self.__char_buffer
-        self.__token = old_token
-        return buff
+        return tokens
 
 
     """
@@ -163,33 +95,19 @@ class Parser(object):
         Valid identifiers are alphanumeric characters or underscores, but
         must start with an alphabetic character.
         """
-        if not self.__token.isalpha():
-            raise RuntimeError("Expected alphabetic character for start of identifier on line {}, column {}.".format(self.__line_no, self.__col_no))
-        word = self.__token
-        self.pop_token()
-        while self.__token.isalnum() or self.__token == UNDERSCORE:
-            word += self.__token
-            self.pop_token()
-        return word
+        token = self.__token
+        if not token.value[0].isalpha():
+            raise RuntimeError("Expected alphabetic character for start of identifier on line {}, column {}. Found {}.".format(token.line_no, token.col_no, token))
+        self.__pop_token()
+        return token.value
 
     def type(self):
         """Types consist of an identifier followed by optional *s for pointers."""
         name = self.identifier()
         while self.__token == ASTERISK:
-            name += self.__token
-            self.pop_token()
+            name += self.__token.value
+            self.__pop_token()
         return name
-
-    def line(self):
-        """
-        Gets characters up to the first newline. The token at the end of this
-        function call will be a newline character.
-        """
-        line = ""
-        while self.__token != NEWLINE:
-            line += self.__token
-            self.pop_token()
-        return line
 
     def macro(self):
         """
@@ -197,14 +115,16 @@ class Parser(object):
         Just copy until the first newline.
         TODO: Add support for multiline macros.
         """
-        line = self.line()
+        self.__check_symbol(MACRO_START)
+        line = MACRO_START
+        while self.__token != NEWLINE:
+            line += self.__token.value
+            self.__pop_token()
         return Macro(line=line)
 
     def function_argument(self):
         arg_name = self.identifier()
-        self.skip_spaces()
-        self.check_token(COLON)
-        self.skip_spaces()
+        self.__check_symbol(COLON)
         arg_type = self.type()
         return FunctionArgument(
             name=arg_name,
@@ -214,40 +134,32 @@ class Parser(object):
     def function_arguments_list(self):
         args = []
         while self.__token != R_PAREN:
-            self.skip_spaces()
-
             if self.__token == COMMA:
-                self.check_token(COMMA)
+                self.__check_symbol(COMMA)
                 continue
-
             arg = self.function_argument()
             args.append(arg)
         return args
 
     def function_definition(self, indent_level):
-        self.check_symbol(DEFINITION)
-        self.check_token(SPACE)
-        self.skip_spaces()
+        self.__check_word(DEFINITION)
 
         # Function name
         func_name = self.identifier()
 
-        self.skip_spaces()
-        self.check_token(L_PAREN)
+        self.__check_symbol(L_PAREN)
 
         # Parse function args
         args = self.function_arguments_list()
 
-        self.check_token(R_PAREN)
-        self.skip_spaces()
-        self.check_right_arrow()
-        self.skip_spaces()
+        self.__check_symbol(R_PAREN)
+        self.__check_right_arrow()
 
         # Return type
         return_type = self.type()
 
-        self.check_token(COLON)
-        self.check_token(NEWLINE)
+        self.__check_symbol(COLON)
+        self.__check_newline()
 
         # Parse body
         body = self.statement_list(indent_level + 1)
@@ -259,42 +171,19 @@ class Parser(object):
             body=body
         )
 
-    def string_literal(self):
-        self.check_token(D_QUOTE)
-        str_literal = ""
-        while self.__token:
-            if self.__token == D_QUOTE:
-                # End of string literal
-                self.check_token(D_QUOTE)
-                break
-            elif self.__token == BACKSLASH:
-                # Escaped next character
-                str_literal += self.__token
-                self.pop_token()
-                str_literal += self.__token
-                self.pop_token()
-            else:
-                # Regular word
-                str_literal += self.__token
-                self.pop_token()
-        return StringLiteral(value=str_literal)
-
     def number_literal(self):
         """
         Construct either whole number or decimal.
         TODO: Add support for numbers in other bases.
         """
-        number = ""
-        while self.__token.isdigit():
-            number += self.__token
-            self.pop_token()
+        number = self.__token.value
+        self.__pop_token()
 
         if self.__token == PERIOD:
-            number += self.__token
-            self.check_token(PERIOD)
-            while self.__token.isdigit():
-                number += self.__token
-                self.pop_token()
+            number += PERIOD
+            self.__pop_token()
+            number += self.__token.value
+            self.__pop_token()
             return DecimalNumberLiteral(value=float(number))
 
         return WholeNumberLiteral(value=int(number))
@@ -302,21 +191,19 @@ class Parser(object):
     def expression(self):
         """Handle different types of expressions."""
         token = self.__token
-        if token == D_QUOTE:
-            return self.string_literal()
-
-        if token.isdigit():
+        if isinstance(token, Quote):
+            self.__pop_token()
+            return StringLiteral(value=token.value)
+        elif isinstance(token, Number):
             return self.number_literal()
 
-        raise RuntimeError("Unknown token in expression '{}' on line {}, col {}.".format(token, self.__line_no, self.__col_no))
+        raise RuntimeError("Unknown token in expression '{}' on line {}, col {}.".format(token, token.line_no, token.col_no))
 
     def expression_list(self):
         args = []
         while self.__token != R_PAREN:
-            self.skip_spaces()
-
             if self.__token == COMMA:
-                self.check_token(COMMA)
+                self.__check_symbol(COMMA)
                 continue
 
             arg = self.expression()
@@ -326,21 +213,19 @@ class Parser(object):
     def function_call(self):
         func_name = self.identifier()
 
-        self.check_token(L_PAREN)
+        self.__check_symbol(L_PAREN)
 
         # Parse function arguments
         exprs = self.expression_list()
 
-        self.check_token(R_PAREN)
+        self.__check_symbol(R_PAREN)
         return FunctionCall(
             name=func_name,
             args=exprs
         )
 
     def return_statement(self):
-        self.check_symbol(RETURN)
-        self.check_token(SPACE)
-        self.skip_spaces()
+        self.__check_word(RETURN)
         return ReturnStatement(return_value=self.expression())
 
     def statement(self, indent_level):
@@ -348,7 +233,7 @@ class Parser(object):
         if token == MACRO_START:
             return self.macro()
 
-        symbol, lookahead = self.peek_symbols(2)
+        symbol, lookahead = self.__peek_tokens(2)
         if symbol == DEFINITION:
             return self.function_definition(indent_level)
         elif symbol == RETURN:
@@ -356,7 +241,7 @@ class Parser(object):
         elif lookahead == L_PAREN:
             return self.function_call()
 
-        raise RuntimeError("Unknown symbol '{}' on line {}, col {}.".format(symbol, self.__line_no, self.__col_no))
+        raise RuntimeError("Unknown symbol '{}' on line {}, col {}.".format(symbol, symbol.line_no, symbol.col_no))
 
     def statement_list(self, indent_level):
         """
@@ -364,27 +249,20 @@ class Parser(object):
         this one.
         """
         body = []
-        expected_indentation = indent_level * self.__indent_count
-        self.skip_newlines()
         while self.__token:
-
             # We have finished 1 scope if we find that the line starts with
-            # the same indent level as expected.
-            indentation = self.peek_spaces()
-            if len(indentation) % self.__indent_count:
-                raise RuntimeError("Impropert indentation on line {}, col {}. Indentations must be a multiple of {} spaces.".format(self.__line_no, self.__col_no, self.__indent_count))
-            elif len(indentation) < expected_indentation:
-                return body
-            elif len(indentation) > expected_indentation:
-                raise RuntimeError("More indentaitons found than expected on line {}, col {}. {} were expected. {} were found.".format(self.__line_no, self.__col_no, indent_level, len(indentation) / self.__indent_count))
+            # smaller indent level as expected.
+            for token in self.__peek_tokens(indent_level):
+                if not isinstance(token, Indent):
+                    return body
 
             # In same scope, proceed normally.
-            self.skip_spaces()
+            for i in xrange(indent_level):
+                self.__check_indent()
             body.append(self.statement(indent_level))
 
             if self.__token:
-                self.check_token(NEWLINE)
-                self.skip_newlines()
+                self.__check_newline()
         return body
 
     def module(self, module_name):

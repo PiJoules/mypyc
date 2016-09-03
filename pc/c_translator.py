@@ -64,7 +64,7 @@ class CTranslator(object):
 
     def translate_literal(self, literal):
         if isinstance(literal, StringLiteral):
-            return "\"" + str(literal.value) + "\""
+            return literal.value
         elif isinstance(literal, NumberLiteral):
             return str(literal.value)
 

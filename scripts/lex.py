@@ -3,7 +3,7 @@
 
 from __future__ import print_function
 
-from pc.parser import Parser
+from pc.lexer import Lexer
 from utils import base_parse_args
 
 import json
@@ -22,9 +22,12 @@ def main():
     args = get_args()
 
     filename = args.filename
-    parser = Parser(filename)
-    parse_tree = parser.parse()
-    print(json.dumps(parse_tree.json(), indent=4))
+    lexer = Lexer(filename)
+    token = lexer.next_token()
+    while token:
+        print(token)
+        token = lexer.next_token()
+
     return 0
 
 

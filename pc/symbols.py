@@ -1,0 +1,16 @@
+# -*- coding: utf-8 -*-
+
+MACRO_START = "#"
+COLON = ":"
+NEWLINE = "\n"
+SPACE = " "
+L_PAREN = "("
+R_PAREN = ")"
+DASH = "-"
+G_THAN = ">"
+UNDERSCORE = "_"
+ASTERISK = "*"
+COMMA = ","
+D_QUOTE = "\""
+BACKSLASH = "\\"
+PERIOD = "."

@@ -17,14 +17,8 @@ Compiling
 Hello world
 ```
 
-Print the translated C code.
-```sh
-(pc) $ pc samples/hello_world.pc -p
-int main(int argc, char** argv){
-    printf("%s\n", "Hello world");
-    return 0;
-}
-```
+To just print the translated C code, add the `-p` flag.
+
 
 ## TODO
 - Formalizing parsing method
