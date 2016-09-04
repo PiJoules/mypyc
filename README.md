@@ -2,6 +2,13 @@
 Convert python-esque code to C.
 
 
+## Requires
+- gcc (only for now)
+- python 2.7
+- pip
+- virtual
+
+
 ## Setup
 Create and install the project as a package in a virtual environment.
 ```sh
