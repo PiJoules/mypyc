@@ -7,11 +7,43 @@ import ast
 from translate import prettyparseprint
 
 
+class Function(object):
+    def __init__(self, name):
+        self.__name = name
+        self.__return_types = []
+        self.__args = []
+
+    def add_args(self, arg):
+        self.__args.append(arg)
+
+    def return_types(self):
+        return self.__return_types
+
+    def name(self):
+        return self.__name
+
+
+class Variable(object):
+    def __init__(self, name):
+        self.__types = []
+        self.__name = name
+
+    def add_type(self, t):
+        self.__types.append(t)
+
+    def name(self):
+        return self.__name
+
+    def types(self):
+        return self.__types
+
+
 def parse_module_node(node):
     return cgen.Module(contents=parse_node_body(node.body))
 
 
 def parse_value(node):
+    """Return back the value and type representation."""
     if isinstance(node, ast.Num):
         return node.n
     else:
@@ -35,11 +67,20 @@ def parse_function_declaration(name, args):
         raise RuntimeError("TODO: Implement search to determine types")
 
 
+def evaluate_func_ret_type(node_body):
+    pass
+
+
 def parse_function_def(node):
+    # Need to evaluate return type and arg types
+
     name = node.name
     args = node.args
     body = node.body
     decs = node.decorator_list
+
+    ret_type = evaluate_func_ret_type(body)
+
     return cgen.FunctionBody(
         parse_function_declaration(name, args),
         cgen.Block(contents=parse_node_body(body)),
@@ -68,17 +109,17 @@ def c_ast_from_python_ast(p_ast):
     return parse_module_node(p_ast)
 
 
+def file_to_python_ast(filename):
+    with open(filename, "r") as f:
+        return code_to_python_ast(f.read())
+
+
 def code_to_python_ast(code):
     return ast.parse(code)
 
 
 def main():
-    p_str = """
-def main(argc, argv):
-    return 0
-    """
-
-    p_ast = code_to_python_ast(p_str)
+    p_ast = file_to_python_ast("test_py_files/1.py")
     prettyparseprint(p_ast)
 
     c_ast = c_ast_from_python_ast(p_ast)
