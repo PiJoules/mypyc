@@ -1,4 +1,5 @@
 *.exe
+*.c
 *.out
 *.o
 test_dir/
