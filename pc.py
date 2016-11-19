@@ -5,37 +5,9 @@ import ast
 
 
 from translate import prettyparseprint
+from function import Function
 
 
-class Function(object):
-    def __init__(self, name):
-        self.__name = name
-        self.__return_types = []
-        self.__args = []
-
-    def add_args(self, arg):
-        self.__args.append(arg)
-
-    def return_types(self):
-        return self.__return_types
-
-    def name(self):
-        return self.__name
-
-
-class Variable(object):
-    def __init__(self, name):
-        self.__types = []
-        self.__name = name
-
-    def add_type(self, t):
-        self.__types.append(t)
-
-    def name(self):
-        return self.__name
-
-    def types(self):
-        return self.__types
 
 
 def parse_module_node(node):
@@ -67,10 +39,6 @@ def parse_function_declaration(name, args):
         raise RuntimeError("TODO: Implement search to determine types")
 
 
-def evaluate_func_ret_type(node_body):
-    pass
-
-
 def parse_function_def(node):
     # Need to evaluate return type and arg types
 
@@ -79,7 +47,7 @@ def parse_function_def(node):
     body = node.body
     decs = node.decorator_list
 
-    ret_type = evaluate_func_ret_type(body)
+    func = Function.from_func_def_node(node)
 
     return cgen.FunctionBody(
         parse_function_declaration(name, args),
