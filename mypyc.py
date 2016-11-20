@@ -116,6 +116,7 @@ def parse_return(node):
 
 
 def function_frame(args):
+    frame = {}
     prettyparseprint(args)
 
 
