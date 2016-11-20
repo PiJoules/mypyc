@@ -214,7 +214,7 @@ def convert_module(node):
     )
 
 
-def main() -> int:
+def main():
     filename = "test.py"
     node = ast_from_file(filename)
 
