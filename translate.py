@@ -11,6 +11,11 @@ def prettyparseprintfile(filename, spaces=4):
 
 
 def prettyparseprint(code, spaces=4):
+    text = prettyparsetext(code)
+    print(text)
+
+
+def prettyparsetext(code, spaces=4):
     node = ast.parse(code)
     text = ast.dump(node)
     indent_count = 0
@@ -35,6 +40,5 @@ def prettyparseprint(code, spaces=4):
                 i += indentation
 
         i += 1
-    print(text)
-
+    return text
 
