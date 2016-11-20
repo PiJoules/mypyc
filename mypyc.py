@@ -9,6 +9,9 @@ import subprocess
 from translate import *
 
 
+GLOBAL_FRAME = {}
+
+
 def ast_from_file(filename):
     with open(filename, "r") as f:
         return generate_ast(f.read())
@@ -19,40 +22,47 @@ def generate_ast(code):
     return node
 
 
-def parse_var_decl(node, name):
+def convert_var_decl(node, name):
+    return cgen.Value(evaluate_var_type(node), name)
+
+
+def evaluate_var_type(node):
     if node is None:
-        return cgen.Value("void", name)
+        return "void"
     elif isinstance(node, ast.Name):
         if node.id == "str":
-            return cgen.Pointer(cgen.Value("char", name))
+            return "char*"
         else:
-            return cgen.Value(node.id, name)
+            return node.id
     elif isinstance(node, ast.List):
-        return cgen.Pointer(parse_var_decl(node.elts[0], name))
+        return evaluate_var_type(node.elts[0]) + "*"
     else:
-        raise RuntimeError("Unknown return type declaration '{}'".format(node))
+        raise RuntimeError("Unknown var type '{}'".format(node))
 
 
-def parse_arg_decl(arg):
-    return parse_var_decl(
+def convert_arg_decl(arg):
+    return convert_var_decl(
         arg.annotation,
         arg.arg
     )
 
 
-def parse_arg_decls(args):
-    pos_args = [parse_arg_decl(a) for a in args.args]
+def convert_arg_decls(args):
+    pos_args = [convert_arg_decl(a) for a in args.args]
     return pos_args
 
 
-def parse_function_declaration(name, args, returns):
+def convert_function_declaration(name, args, returns, frame):
+    func_ret_type = evaluate_var_type(returns)
+    frame[name] = func_ret_type
+
     return cgen.FunctionDeclaration(
-        parse_var_decl(returns, name),
-        parse_arg_decls(args)
+        convert_var_decl(returns, name),
+        convert_arg_decls(args)
     )
 
 
-def parse_op(node):
+def convert_op(node):
     if isinstance(node, ast.Add):
         return "+"
     elif isinstance(node, ast.Sub):
@@ -81,22 +91,22 @@ def parse_op(node):
         raise RuntimeError("Uknown binary operation {}".format(node))
 
 
-def parse_bin_op(node):
+def convert_bin_op(node):
     return "{} {} {}".format(
-        parse_expr(node.left),
-        parse_op(node.op),
-        parse_expr(node.right)
+        convert_expr(node.left),
+        convert_op(node.op),
+        convert_expr(node.right)
     )
 
 
-def parse_call(node):
+def convert_call(node):
     return "{name}({args})".format(
-        name=parse_expr(node.func),
-        args=", ".join([parse_expr(a) for a in node.args])
+        name=convert_expr(node.func),
+        args=", ".join([convert_expr(a) for a in node.args])
     )
 
 
-def parse_expr(node):
+def convert_expr(node):
     if isinstance(node, ast.Num):
         return str(node.n)
     elif isinstance(node, ast.Str):
@@ -104,63 +114,103 @@ def parse_expr(node):
     elif isinstance(node, ast.Name):
         return node.id
     elif isinstance(node, ast.BinOp):
-        return parse_bin_op(node)
+        return convert_bin_op(node)
     elif isinstance(node, ast.Call):
-        return parse_call(node)
+        return convert_call(node)
     else:
         raise RuntimeError("Unknown expression \n{}".format(prettyparsetext(node)))
 
 
-def parse_return(node):
-    return cgen.Statement("return {}".format(parse_expr(node.value)))
+def convert_return(node):
+    return cgen.Statement("return {}".format(convert_expr(node.value)))
 
 
-def function_frame(args):
-    frame = {}
-    prettyparseprint(args)
-
-
-def parse_function_def(node):
+def convert_function_def(node, frame):
     name = node.name
     args = node.args
     body = node.body
     decs = node.decorator_list
     returns = node.returns
 
-    init_frame = function_frame(args)
-    contents = parse_body(body)
+    contents = convert_body(body, frame)
     block = cgen.Block(contents=contents)
 
     return cgen.FunctionBody(
-        parse_function_declaration(name, args, returns),
+        convert_function_declaration(name, args, returns, frame),
         block
     )
 
 
-def parse_statement(node):
+def evaluate_literal_type(expr):
+    if isinstance(expr, ast.Num):
+        return "int"
+    elif isinstance(expr, ast.Str):
+        return "char*"
+    else:
+        raise RuntimeError("Unknown literal type\n{}".format(prettyparsetext(expr)))
+
+
+def evaluate_function_return_type(func, frame):
+    name = func.func.id
+    if name not in frame:
+        raise RuntimeError("Function '{}' was not declared beforehand.".format(name))
+    return frame[name]
+
+
+def evaluate_expr_type(expr, frame):
+    if isinstance(expr, ast.Call):
+        return evaluate_function_return_type(expr, frame)
+    elif isinstance(expr, ast.Name):
+        return frame[expr.id]
+    else:
+        return evaluate_literal_type(expr)
+
+
+def convert_assign(node, frame):
+    lhs = node.targets
+    rhs = node.value
+
+    lhs = lhs[0]
+    name = lhs.id
+
+    rvalue = convert_expr(rhs)
+    if name not in frame:
+        # The rhs is either a function or a hardcoded value.
+        # Extract this type.
+        var_type = evaluate_expr_type(rhs, frame)
+        lvalue = cgen.Value(var_type, name).inline(with_semicolon=False)
+    else:
+        lvalue = name
+
+    return cgen.Assign(
+        lvalue=lvalue,
+        rvalue=rvalue
+    )
+
+
+def convert_statement(node, frame):
     if isinstance(node, ast.Module):
-        return parse_module(node)
+        return convert_module(node)
     elif isinstance(node, ast.FunctionDef):
-        return parse_function_def(node)
+        return convert_function_def(node, frame)
     elif isinstance(node, ast.Return):
-        return parse_return(node)
+        return convert_return(node)
     elif isinstance(node, ast.Expr):
-        return cgen.Statement(parse_expr(node.value))
+        return cgen.Statement(convert_expr(node.value))
     elif isinstance(node, ast.Assign):
-        raise RuntimeError("TODO: Implement Assignment")
+        return convert_assign(node, frame)
     else:
         raise RuntimeError("Unknown statement \n{}".format(prettyparsetext(node)))
 
 
-def parse_body(nodes, frame=None):
-    if frame is None:
-        frame = {}
-    return [parse_statement(n) for n in nodes if not isinstance(n, ast.Pass)]
+def convert_body(nodes, frame):
+    local_frame = {k: v for k, v in frame.items()}
+    return [convert_statement(n, local_frame) for n in nodes if not isinstance(n, ast.Pass)]
 
 
-def parse_module(node):
+def convert_module(node):
     return cgen.Module(
-        contents=parse_body(node.body)
+        contents=convert_body(node.body, GLOBAL_FRAME)
     )
 
 
@@ -169,7 +219,7 @@ def main() -> int:
     node = ast_from_file(filename)
 
     prettyparseprint(node)
-    c_code = str(parse_module(node))
+    c_code = str(convert_module(node))
     print(c_code)
 
 
