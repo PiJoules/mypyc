@@ -70,7 +70,7 @@ def main():
     c_file = save_c_code(c_code, filename)
     compile_c_code(c_file)
 
-    return 0
+    return
 
 
 if __name__ == "__main__":
