@@ -1,21 +1,19 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import print_function
 
-import re
+"""
+Utility functions.
+"""
+
 import ast
-
-def prettyparseprintfile(filename, spaces=4):
-    with open(filename, "r") as f:
-        prettyparseprint(f.read(), spaces)
-
-
-def prettyparseprint(code, spaces=4):
-    text = prettyparsetext(code)
-    print(text)
 
 
 def prettyparsetext(code, spaces=4):
+    """Nicer way of displaying the dump produced by ast.dump().
+    Value is returned as string.
+
+    Args:
+        spaces (int): Number of spaces per indentation.
+    """
     node = ast.parse(code)
     text = ast.dump(node)
     indent_count = 0
@@ -41,4 +39,27 @@ def prettyparsetext(code, spaces=4):
 
         i += 1
     return text
+
+
+def prettyparseprint(code, spaces=4):
+    """Dump the results of prettyparsetext."""
+    print(prettyparsetext(code, spaces=spaces))
+
+
+def prettyparseprintfile(filename, spaces=4):
+    """Dump the results of a file."""
+    with open(filename, "r") as f:
+        prettyparseprint(f.read(), spaces=spaces)
+
+
+def generate_ast(code):
+    """Generate a python ast from python code."""
+    return ast.parse(code)
+
+
+def ast_from_file(filename):
+    """Generate a python ast from a python file."""
+    with open(filename, "r") as f:
+        return generate_ast(f.read())
+
 
