@@ -7,7 +7,7 @@ import os
 import subprocess
 
 from utils import *
-from conversions import *
+from c_conversions import *
 
 
 def save_c_code(c_code, filename):
@@ -26,12 +26,14 @@ def save_c_code(c_code, filename):
 def compile_c_code(filename, compiler="gcc", standard="c11"):
     base_name, ext = os.path.splitext(filename)
 
-    cmd = "{compiler} -std={standard} -o {output} {files}"
+    files = [filename]
+
+    cmd = "{compiler} -std={standard} -o {output} {files} -Iinclude"
     cmd = cmd.format(
         compiler=compiler,
         standard=standard,
         output=base_name,
-        files=" ".join([filename])
+        files=" ".join(files)
     )
 
     assert not subprocess.check_call(cmd.split())
@@ -64,7 +66,8 @@ def main():
         return
 
     # Generate the c code from the ast
-    c_code = str(convert_module(node))
+    c_ast = convert_module(node)
+    c_code = str(c_ast)
 
     # Save into c file and compile
     c_file = save_c_code(c_code, filename)

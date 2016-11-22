@@ -4,6 +4,8 @@
 Functions for converting nodes of the python ast to nodes of the c ast.
 """
 
+from utils import *
+
 import cgen
 import ast
 
@@ -58,6 +60,8 @@ def determine_expr_type(expr, frame):
     if isinstance(expr, ast.Call):
         return determine_function_return_type(expr, frame)
     elif isinstance(expr, ast.Name):
+        if expr.id not in frame:
+            raise RuntimeError("Unable to find variable/function '{}' in frame: {}".format(expr.id, list(frame.keys())))
         return frame[expr.id]
     else:
         return determine_literal_type(expr)
@@ -66,6 +70,16 @@ def determine_expr_type(expr, frame):
 """
 Conversions
 """
+
+
+# Nodes that are allowed to stay in the body of a module without having to be
+# wrapped in a function
+VALID_MODULE_NODES = (
+    ast.Import,
+    ast.ImportFrom,
+    ast.FunctionDef,
+    ast.Assign,
+)
 
 
 def convert_variable_declaration(node, name):
@@ -108,8 +122,12 @@ def convert_operand(node):
         raise RuntimeError("Uknown binary operation {}".format(node))
 
 
-def convert_expression(node):
-    """Convert a python expression to the valid c code."""
+def convert_expression(node, frame):
+    """Convert a python expression to the valid c code.
+
+    Returns:
+        str: The string representation of the c expression.
+    """
     if isinstance(node, ast.Num):
         return str(node.n)
     elif isinstance(node, ast.Str):
@@ -117,33 +135,55 @@ def convert_expression(node):
     elif isinstance(node, ast.Name):
         return node.id
     elif isinstance(node, ast.BinOp):
-        return convert_binary_operation(node)
+        return convert_binary_operation(node, frame)
     elif isinstance(node, ast.Call):
-        return convert_call(node)
+        return convert_call(node, frame)
     else:
         raise RuntimeError("Unknown expression \n{}".format(prettyparsetext(node)))
 
 
-def convert_binary_operation(node):
+def convert_binary_operation(node, frame):
     """Convert a binary operation to the corresponding valid c code."""
     return "{} {} {}".format(
-        convert_expression(node.left),
+        convert_expression(node.left, frame),
         convert_operand(node.op),
-        convert_expression(node.right)
+        convert_expression(node.right, frame)
     )
 
 
-def convert_call(node):
-    """Convert a python function call to the valid c representation."""
+def convert_print(node, frame):
+    """Convert specific print statements to print formats."""
+    if len(node.args) == 1:
+        arg = node.args[0]
+        arg_type = determine_expr_type(arg, frame)
+        if arg_type == "int":
+            # TODO: Ensure that propper includes are added at the start of the
+            # file
+            return "printf(\"%d\\n\", {})".format(convert_expression(arg, frame))
+        else:
+            raise RuntimeError("TODO: Implement handling of single print argument of type '{}'".format(arg_type))
+    else:
+        raise RuntimeError("TODO: Implement handling of multiple print arguments")
+
+
+def convert_call(node, frame):
+    """Convert a python function call to the valid c representation.
+
+    Returns:
+        str: The string representation of the equivalent c call.
+    """
+    if node.func.id == "print":
+        return convert_print(node, frame)
+
     return "{name}({args})".format(
-        name=convert_expression(node.func),
-        args=", ".join(convert_expression(a) for a in node.args)
+        name=node.func.id,
+        args=", ".join(convert_expression(a, frame) for a in node.args)
     )
 
 
-def convert_return(node):
+def convert_return(node, frame):
     """Convert a return node to valid c return statement."""
-    return cgen.Statement("return {}".format(convert_expression(node.value)))
+    return cgen.Statement("return {}".format(convert_expression(node.value, frame)))
 
 
 def convert_function_def(node, frame):
@@ -182,11 +222,12 @@ def convert_assign(node, frame):
     lhs = lhs[0]
     name = lhs.id
 
-    rvalue = convert_expression(rhs)
+    rvalue = convert_expression(rhs, frame)
     if name not in frame:
         # The rhs is either a function or a hardcoded value.
         # Extract this type.
         var_type = determine_expr_type(rhs, frame)
+        frame[name] = var_type
         lvalue = cgen.Value(var_type, name).inline(with_semicolon=False)
     else:
         lvalue = name
@@ -197,20 +238,25 @@ def convert_assign(node, frame):
     )
 
 
+def convert_import(node):
+    """Convert a single python import to a list of c includes."""
+    return [cgen.Include(a.name + ".h") for a in node.names]
+
+
 def convert_statement(node, frame):
     """Ceck for the type of statement and convert it appropriately.
     If the frame can be changed such as in an assignment, the frame
     may also be changed."""
-    if isinstance(node, ast.Module):
-        return convert_module(node)
-    elif isinstance(node, ast.FunctionDef):
+    if isinstance(node, ast.FunctionDef):
         return convert_function_def(node, frame)
     elif isinstance(node, ast.Return):
-        return convert_return(node)
+        return convert_return(node, frame)
     elif isinstance(node, ast.Expr):
-        return cgen.Statement(convert_expression(node.value))
+        return cgen.Statement(convert_expression(node.value, frame))
     elif isinstance(node, ast.Assign):
         return convert_assign(node, frame)
+    elif isinstance(node, ast.Import):
+        raise RuntimeError("Imports should have already been processed beforehand.")
     else:
         raise RuntimeError("Unknown statement \n{}".format(prettyparsetext(node)))
 
@@ -222,13 +268,25 @@ def convert_body(nodes, frame):
     TODO: Allow for variables declared in bodies of if statements and
     while/for loops to persist out of that body."""
     local_frame = {k: v for k, v in frame.items()}
-    return [convert_statement(n, local_frame) for n in nodes if not isinstance(n, ast.Pass)]
+    body = []
+
+    # Handle all imports first
+    for node in nodes:
+        if isinstance(node, ast.Import):
+            body += convert_import(node)
+
+    # Convert remaining nodes that aren't pass or import
+    body += [convert_statement(n, local_frame) for n in nodes if not isinstance(n, (ast.Pass, ast.Import))]
+
+    return body
 
 
 def convert_module(node):
     """Convert a python module to a block of c code."""
-    return cgen.Module(
-        contents=convert_body(node.body, {})
-    )
+
+    body = [cgen.Include("mypyc.h")]
+    body += convert_body([n for n in node.body if isinstance(n, VALID_MODULE_NODES)], {})
+
+    return cgen.Module(contents=body)
 
 
