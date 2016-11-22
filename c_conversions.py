@@ -174,11 +174,16 @@ def convert_call(node, frame):
     Returns:
         str: The string representation of the equivalent c call.
     """
-    if node.func.id == "print":
+    if isinstance(node.func, ast.Attribute):
+        name = node.func.attr
+    else:
+        name = node.func.id
+
+    if name == "print":
         return convert_print(node, frame)
 
     return "{name}({args})".format(
-        name=node.func.id,
+        name=name,
         args=", ".join(convert_expression(a, frame) for a in node.args)
     )
 
@@ -242,7 +247,10 @@ def convert_assign(node, frame):
 
 def convert_import(node):
     """Convert a single python import to a list of c includes."""
-    return [cgen.Include(a.name + ".h") for a in node.names]
+    imports = []
+    for alias in node.names:
+        imports.append(cgen.Include("p_" + alias.name + ".h"))
+    return imports
 
 
 def convert_statement(node, frame):

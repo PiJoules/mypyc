@@ -10,6 +10,15 @@ from utils import *
 from c_conversions import *
 
 
+SOURCE_FILES = [
+    "lib/p_math.c",
+]
+
+LIB_FILES = [
+    "m",
+]
+
+
 def save_c_code(c_code, filename):
     """Save the covnerted c code from the original python file. If the
     corresponding c file exists, it is overwritten.
@@ -26,14 +35,14 @@ def save_c_code(c_code, filename):
 def compile_c_code(filename, compiler="gcc", standard="c11"):
     base_name, ext = os.path.splitext(filename)
 
-    files = [filename]
+    files = [filename] + SOURCE_FILES
 
-    cmd = "{compiler} -std={standard} -o {output} {files} -Iinclude"
+    cmd = "{compiler} -std={standard} -o {output} {files} -I include -L lib"
     cmd = cmd.format(
         compiler=compiler,
         standard=standard,
         output=base_name,
-        files=" ".join(files)
+        files=" ".join(files),
     )
 
     assert not subprocess.check_call(cmd.split())
