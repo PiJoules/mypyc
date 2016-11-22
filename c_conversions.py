@@ -160,6 +160,8 @@ def convert_print(node, frame):
             # TODO: Ensure that propper includes are added at the start of the
             # file
             return "printf(\"%d\\n\", {})".format(convert_expression(arg, frame))
+        elif arg_type == "char*":
+            return "printf(\"%s\\n\", {})".format(convert_expression(arg, frame))
         else:
             raise RuntimeError("TODO: Implement handling of single print argument of type '{}'".format(arg_type))
     else:

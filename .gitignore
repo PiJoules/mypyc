@@ -9,6 +9,9 @@ samples/*
 
 !samples/*.pc
 
+test_python_scripts/*
+!test_python_scripts/*.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
