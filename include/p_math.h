@@ -6,6 +6,9 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+float pi = M_PI;
+
 float radians(float);
+float degrees(float);
 
 #endif

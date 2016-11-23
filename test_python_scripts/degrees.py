@@ -9,7 +9,7 @@ def degrees_to_radians(degrees: float) -> float:
 
 
 def radians_to_degrees(radians: float) -> float:
-    pass
+    return math.degrees(radians)
 
 
 def fahrenheit_to_celsius(fahrenheit: float) -> float:
@@ -29,7 +29,9 @@ def kelvin_to_celsius(kelvin: float) -> float:
 
 
 def main(argc: int, argv: [str]) -> int:
-    print("Hello world")
+    print("180 deg to radians:", degrees_to_radians(180.0))
+    print("hardcoded 3.14159 to degrees:", radians_to_degrees(3.14159))
+    print("builtin math.pi to degrees:", radians_to_degrees(math.pi))
     return 0
 
 

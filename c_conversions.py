@@ -67,6 +67,23 @@ def determine_expr_type(expr, frame):
         return determine_literal_type(expr)
 
 
+def determine_format_specifier(expr, frame):
+    """Determine the format specifier for an expression node.
+
+    Returns:
+        str: the format specifier
+    """
+    arg_type = determine_expr_type(expr, frame)
+    if arg_type == "char*":
+        return "%s"
+    elif arg_type == "int":
+        return "%d"
+    elif arg_type == "float":
+        return "%f"
+    else:
+        raise RuntimeError("TODO: Implement way of determining format specifier for {}".format(expr))
+
+
 """
 Conversions
 """
@@ -80,6 +97,14 @@ VALID_MODULE_NODES = (
     ast.FunctionDef,
     ast.Assign,
 )
+
+
+IMPORTED_MODULES = set()
+
+
+BUILTIN_FUNCTIONS = set([
+    "print",
+])
 
 
 def convert_variable_declaration(node, name):
@@ -138,6 +163,8 @@ def convert_expression(node, frame):
         return convert_binary_operation(node, frame)
     elif isinstance(node, ast.Call):
         return convert_call(node, frame)
+    elif isinstance(node, ast.Attribute):
+        return convert_attribute(node, frame)
     else:
         raise RuntimeError("Unknown expression \n{}".format(prettyparsetext(node)))
 
@@ -148,6 +175,39 @@ def convert_binary_operation(node, frame):
         convert_expression(node.left, frame),
         convert_operand(node.op),
         convert_expression(node.right, frame)
+    )
+
+
+def convert_print_format(expr, frame):
+    """Convert an expression to the appropriate format specifier and valid
+    c representation.
+
+    Returns:
+        str: Format specifier
+        str: c expression
+    """
+    expr_type = determine_expr_type(expr, frame)
+    expr_fmt = convert_expression(expr, frame)
+    return expr_type, expr_fmt
+
+
+def convert_multiple_arg_print(node, frame):
+    """Convert a multiple argument print statement.
+    Join all arguments by a single space.
+
+    print(expr1, expr2, expr3, ...)
+    """
+    args = node.args
+    fmt_specifiers = []
+    exprs = []
+
+    for arg in args:
+        fmt_specifiers.append(determine_format_specifier(arg, frame))
+        exprs.append(convert_expression(arg, frame))
+
+    return "printf(\"{fmt_specifiers}\\n\", {exprs})".format(
+        fmt_specifiers=" ".join(fmt_specifiers),
+        exprs=", ".join(exprs)
     )
 
 
@@ -162,10 +222,29 @@ def convert_print(node, frame):
             return "printf(\"%d\\n\", {})".format(convert_expression(arg, frame))
         elif arg_type == "char*":
             return "printf(\"%s\\n\", {})".format(convert_expression(arg, frame))
+        elif arg_type == "float":
+            return "printf(\"%f\\n\", {})".format(convert_expression(arg, frame))
         else:
             raise RuntimeError("TODO: Implement handling of single print argument of type '{}'".format(arg_type))
     else:
-        raise RuntimeError("TODO: Implement handling of multiple print arguments")
+        return convert_multiple_arg_print(node, frame)
+
+
+def convert_attribute(node, frame):
+    """Convert accessing an attribute in a python object to the valid c representation."""
+    obj_name = node.value.id
+    if obj_name in IMPORTED_MODULES:
+        # Calling something in another module
+        return node.attr
+    else:
+        raise RuntimeError("TODO: Handle accessing attributes from something other than an imported module.")
+
+
+def convert_builtin_function(node, frame):
+    if node.func.id == "print":
+        return convert_print(node, frame)
+    else:
+        raise RuntimeError("Unknown builtin function {}".format(node.func.id))
 
 
 def convert_call(node, frame):
@@ -179,8 +258,8 @@ def convert_call(node, frame):
     else:
         name = node.func.id
 
-    if name == "print":
-        return convert_print(node, frame)
+    if name in BUILTIN_FUNCTIONS:
+        return convert_builtin_function(node, frame)
 
     return "{name}({args})".format(
         name=name,
@@ -249,6 +328,7 @@ def convert_import(node):
     """Convert a single python import to a list of c includes."""
     imports = []
     for alias in node.names:
+        IMPORTED_MODULES.add(alias.name)
         imports.append(cgen.Include("p_" + alias.name + ".h"))
     return imports
 

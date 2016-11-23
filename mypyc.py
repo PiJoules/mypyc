@@ -14,10 +14,6 @@ SOURCE_FILES = [
     "lib/p_math.c",
 ]
 
-LIB_FILES = [
-    "m",
-]
-
 
 def save_c_code(c_code, filename):
     """Save the covnerted c code from the original python file. If the
@@ -56,7 +52,7 @@ def get_args():
     parser.add_argument("filename", help="Python file to convert.")
 
     # Debug options
-    parser.add_argument("-d", "--dump-python-ast", action="store_true",
+    parser.add_argument("-p", "--python-ast-dump", action="store_true",
                         default=False,
                         help="Only dump the python ast of the python code.")
 
@@ -70,7 +66,7 @@ def main():
     filename = args.filename
     node = ast_from_file(filename)
 
-    if args.dump_python_ast:
+    if args.python_ast_dump:
         prettyparseprint(node)
         return
 
