@@ -5,83 +5,10 @@ Functions for converting nodes of the python ast to nodes of the c ast.
 """
 
 from utils import *
+from features import *
 
 import cgen
 import ast
-
-
-"""
-Type extraction
-"""
-
-
-def determine_variable_type(node):
-    """Determine the type of a variable node.
-
-    Returns:
-        str: The type as a string.
-    """
-    if node is None:
-        # Nothing specified deafults to no return type
-        return "void"
-    elif isinstance(node, ast.Name):
-        if node.id == "str":
-            # Strings are represented as char pointers
-            return "char*"
-        else:
-            return node.id
-    elif isinstance(node, ast.List):
-        # Lists are represented as pointers to whatever they contain
-        return determine_variable_type(node.elts[0]) + "*"
-    else:
-        raise RuntimeError("Unknown var type '{}'".format(node))
-
-
-def determine_literal_type(expr):
-    """Determine the type of a literal node."""
-    if isinstance(expr, ast.Num):
-        return "int"
-    elif isinstance(expr, ast.Str):
-        return "char*"
-    else:
-        raise RuntimeError("Unknown literal type\n{}".format(prettyparsetext(expr)))
-
-
-def determine_function_return_type(func, frame):
-    """Determine the return type of a function and add it to the frame."""
-    name = func.func.id
-    if name not in frame:
-        raise RuntimeError("Function '{}' was not declared beforehand.".format(name))
-    return frame[name]
-
-
-def determine_expr_type(expr, frame):
-    """Determine the type of an expression and potentially add it to the frame."""
-    if isinstance(expr, ast.Call):
-        return determine_function_return_type(expr, frame)
-    elif isinstance(expr, ast.Name):
-        if expr.id not in frame:
-            raise RuntimeError("Unable to find variable/function '{}' in frame: {}".format(expr.id, list(frame.keys())))
-        return frame[expr.id]
-    else:
-        return determine_literal_type(expr)
-
-
-def determine_format_specifier(expr, frame):
-    """Determine the format specifier for an expression node.
-
-    Returns:
-        str: the format specifier
-    """
-    arg_type = determine_expr_type(expr, frame)
-    if arg_type == "char*":
-        return "%s"
-    elif arg_type == "int":
-        return "%d"
-    elif arg_type == "float":
-        return "%f"
-    else:
-        raise RuntimeError("TODO: Implement way of determining format specifier for {}".format(expr))
 
 
 """
@@ -122,11 +49,11 @@ def convert_argument_declarations(args):
     return [convert_variable_declaration(a.annotation, a.arg) for a in args.args]
 
 
-def convert_operand(node):
-    """Convert a binary operand to the corresponding valid c operation."""
-    if isinstance(node, ast.Add):
+def convert_operation(node):
+    """Convert a binary or unary operand to the corresponding valid c operation."""
+    if isinstance(node, (ast.Add, ast.UAdd)):
         return "+"
-    elif isinstance(node, ast.Sub):
+    elif isinstance(node, (ast.Sub, ast.USub)):
         return "-"
     elif isinstance(node, ast.Mult):
         return "*"
@@ -148,6 +75,10 @@ def convert_operand(node):
         return "&"
     elif isinstance(node, ast.MatMult):
         raise RuntimeError("TODO: Implement matrix multiplication operations")
+    elif isinstance(node, (ast.Not, ast.Invert)):
+        # TODO: Implement different logic between boolean not (not) and bitwise
+        # not (~)
+        return "~"
     else:
         raise RuntimeError("Uknown binary operation {}".format(node))
 
@@ -170,15 +101,25 @@ def convert_expression(node, frame):
         return convert_call(node, frame)
     elif isinstance(node, ast.Attribute):
         return convert_attribute(node)
+    elif isinstance(node, ast.UnaryOp):
+        return convert_unary_operation(node, frame)
     else:
         raise RuntimeError("Unknown expression \n{}".format(prettyparsetext(node)))
 
 
+def convert_unary_operation(node, frame):
+    """Convert a unary operation to valid c representation."""
+    return "{}({})".format(
+        convert_operation(node.op),
+        convert_expression(node.operand, frame)
+    )
+
+
 def convert_binary_operation(node, frame):
     """Convert a binary operation to the corresponding valid c code."""
-    return "{} {} {}".format(
+    return "({}) {} ({})".format(
         convert_expression(node.left, frame),
-        convert_operand(node.op),
+        convert_operation(node.op),
         convert_expression(node.right, frame)
     )
 
