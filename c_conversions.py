@@ -107,6 +107,11 @@ BUILTIN_FUNCTIONS = set([
 ])
 
 
+BUILTIN_MODULES = set([
+    "math",
+])
+
+
 def convert_variable_declaration(node, name):
     """Convert a python variable declaration to a c declaration."""
     return cgen.Value(determine_variable_type(node), name)
@@ -164,7 +169,7 @@ def convert_expression(node, frame):
     elif isinstance(node, ast.Call):
         return convert_call(node, frame)
     elif isinstance(node, ast.Attribute):
-        return convert_attribute(node, frame)
+        return convert_attribute(node)
     else:
         raise RuntimeError("Unknown expression \n{}".format(prettyparsetext(node)))
 
@@ -230,14 +235,16 @@ def convert_print(node, frame):
         return convert_multiple_arg_print(node, frame)
 
 
-def convert_attribute(node, frame):
+def convert_attribute(node):
     """Convert accessing an attribute in a python object to the valid c representation."""
-    obj_name = node.value.id
-    if obj_name in IMPORTED_MODULES:
-        # Calling something in another module
-        return node.attr
+    if isinstance(node, ast.Attribute):
+        return convert_attribute(node.value) + "->" + node.attr
+    elif isinstance(node, ast.Name):
+        if node.id in BUILTIN_MODULES:
+            return "p_" + node.id + "_module"
+        return node.id
     else:
-        raise RuntimeError("TODO: Handle accessing attributes from something other than an imported module.")
+        raise RuntimeError("Unknown attribute type {}".format(node))
 
 
 def convert_builtin_function(node, frame):
@@ -253,10 +260,7 @@ def convert_call(node, frame):
     Returns:
         str: The string representation of the equivalent c call.
     """
-    if isinstance(node.func, ast.Attribute):
-        name = node.func.attr
-    else:
-        name = node.func.id
+    name = convert_attribute(node.func)
 
     if name in BUILTIN_FUNCTIONS:
         return convert_builtin_function(node, frame)

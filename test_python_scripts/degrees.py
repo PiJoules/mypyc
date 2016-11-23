@@ -12,20 +12,20 @@ def radians_to_degrees(radians: float) -> float:
     return math.degrees(radians)
 
 
-def fahrenheit_to_celsius(fahrenheit: float) -> float:
-    pass
-
-
-def celsius_to_fahrenheit(celsius: float) -> float:
-    pass
-
-
-def celsius_to_kelvin(celsius: float) -> float:
-    pass
-
-
-def kelvin_to_celsius(kelvin: float) -> float:
-    pass
+#def fahrenheit_to_celsius(fahrenheit: float) -> float:
+#    pass
+#
+#
+#def celsius_to_fahrenheit(celsius: float) -> float:
+#    pass
+#
+#
+#def celsius_to_kelvin(celsius: float) -> float:
+#    pass
+#
+#
+#def kelvin_to_celsius(kelvin: float) -> float:
+#    pass
 
 
 def main(argc: int, argv: [str]) -> int:
