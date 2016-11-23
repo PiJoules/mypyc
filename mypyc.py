@@ -37,7 +37,7 @@ def compile_c_code(filename, compiler="gcc", standard="c11"):
 
     files = [filename] + SOURCE_FILES
 
-    cmd = "{compiler} -std={standard} -o {output} {files} -I include -L lib"
+    cmd = "{compiler} -std={standard} -o {output} {files} -I include"
     cmd = cmd.format(
         compiler=compiler,
         standard=standard,
