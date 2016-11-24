@@ -266,7 +266,7 @@ def convert_function_def(node, frame):
     )
 
 
-def convert_assign(node, frame):
+def convert_assignment(node, frame, assign_op="="):
     """Convert a variable assignment to valid c declaration.
 
     TODO: Add checking for if using global statement to use global variable.
@@ -284,22 +284,22 @@ def convert_assign(node, frame):
     name = lhs.id
 
     rvalue = convert_expression(rhs, frame)
-    if name not in frame:
-        # The rhs is either a function or a hardcoded value.
-        # Extract this type.
-        var_type = determine_expr_type(rhs, frame)
-        frame[name] = var_type
-        lvalue = cgen.Value(var_type, name).inline(with_semicolon=False)
+    return convert_assignment_from_parts(name, rhs, frame, assign_op=assign_op)
+
+
+def convert_assignment_from_parts(target_name, rhs_node, frame, assign_op="="):
+    if target_name not in frame:
+        target_type = determine_expr_type(rhs_node, frame)
+        frame[target_name] = target_type
+        lvalue = convert_value_declaration(target_type, target_name)
     else:
-        lvalue = name
+        lvalue = target_name
 
-    return cgen.Assign(
-        lvalue=lvalue,
-        rvalue=rvalue
-    )
+    return cgen.Statement("{} {} {}".format(lvalue, assign_op, convert_expression(rhs_node, frame)))
 
 
-def assignment_from_parts(var_type, var_name, rhs):
+
+def raw_assignment_from_parts(var_type, var_name, rhs):
     """Convert a type, name, and rhs expression to an assignment node.
 
     Args:
@@ -376,7 +376,7 @@ def regular_iteration(node, frame):
     local_frame[iter_val.id] = "int"
 
     return cgen.For(
-        str(assignment_from_parts("int", iter_val.id, start))[:-1],  # last part has extra semicolon
+        str(raw_assignment_from_parts("int", iter_val.id, start))[:-1],  # last part has extra semicolon
         "{} < {}".format(iter_val.id, stop),
         "{} += {}".format(iter_val.id, step),
         cgen.Block(contents=convert_body(body, local_frame))
@@ -484,27 +484,18 @@ def convert_while(node, frame):
     orelse = node.orelse
 
     # TODO: Add logic for orelse statememts
-    #iter_val = node.target
-    #iterable = node.iter
-    #body = node.body
-    #orelse = node.orelse
-
-    #start, stop, step = convert_range_to_params(iterable, frame)
-
-    #local_frame = {k: v for k, v in frame.items()}
-    #local_frame[iter_val.id] = "int"
-
-    #return cgen.For(
-    #    str(assignment_from_parts("int", iter_val.id, start))[:-1],  # last part has extra semicolon
-    #    "{} < {}".format(iter_val.id, stop),
-    #    "{} += {}".format(iter_val.id, step),
-    #    cgen.Block(contents=convert_body(body, local_frame))
-    #)
 
     return cgen.While(
         convert_boolean_operation(condition, frame),
         cgen.Block(contents=convert_body(body, frame))
     )
+
+
+def convert_augmented_assignment(node, frame):
+    """Convert aug assignments (+=, -=, *=) to valid c representations."""
+    return convert_assignment_from_parts(
+        node.target.id, node.value, frame,
+        assign_op=convert_operation(node.op) + "=")
 
 
 def convert_statement(node, frame):
@@ -522,7 +513,7 @@ def convert_statement(node, frame):
     elif isinstance(node, ast.Expr):
         return cgen.Statement(convert_expression(node.value, frame))
     elif isinstance(node, ast.Assign):
-        return convert_assign(node, frame)
+        return convert_assignment(node, frame)
     elif isinstance(node, ast.Import):
         raise RuntimeError("Imports should have already been processed beforehand.")
     elif isinstance(node, ast.For):
@@ -531,6 +522,8 @@ def convert_statement(node, frame):
         return convert_if(node, frame)
     elif isinstance(node, ast.While):
         return convert_while(node, frame)
+    elif isinstance(node, ast.AugAssign):
+        return convert_augmented_assignment(node, frame)
     else:
         raise RuntimeError("Unknown statement \n{}".format(node))
 

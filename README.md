@@ -36,6 +36,9 @@ $ nosetests
   - with
 - Reduce number of scoping using parenthesis by not encapsulating function calls or single variables or hardocded types. Only encapsulate expressions with parenthesis.
 - Cleanup and modularize c_conversions.py
+  - Cleanup the assignment functions
 - Tests
   - Add unit tests
   - For `degrees.py`, use assertAlmostEqual to check the floating point outputs
+  - Code generation for each integration test sample script
+  - Come up with a test that involves assignment not using the test.py script

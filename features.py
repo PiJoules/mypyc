@@ -55,6 +55,14 @@ def determine_expr_type(expr, frame):
         if expr.id not in frame:
             raise RuntimeError("Unable to find variable/function '{}' in frame: {}".format(expr.id, list(frame.keys())))
         return frame[expr.id]
+    elif isinstance(expr, ast.UnaryOp):
+        return determine_expr_type(expr.operand, frame)
+    elif isinstance(expr, ast.BinOp):
+        # TODO: Check the right hand side also
+        return determine_expr_type(expr.left, frame)
+    elif isinstance(expr, (ast.Compare, ast.BoolOp)):
+        # All boolean expressions will default to int for now
+        return "int"
     else:
         return determine_literal_type(expr)
 

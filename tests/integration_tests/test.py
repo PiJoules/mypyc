@@ -45,3 +45,10 @@ class IntegrationTests(unittest.TestCase):
     def test_fizzbuzz(self):
         self.__check_output("fizzbuzz.py")
 
+    def test_game_of_threes(self):
+        self.__check_output("game_of_threes.py")
+
+    def test_test(self):
+        """Not a real test script. Just temporarily here to test variable assignment."""
+        self.__check_output("test.py")
+
