@@ -8,11 +8,9 @@ pc-venv/
 
 tests/integration_tests/expected_outputs/*.output
 
-samples/*
-!samples/*.pc
 
-test_python_scripts/*
-!test_python_scripts/*.py
+sample_python_scripts/*
+!sample_python_scripts/*.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
