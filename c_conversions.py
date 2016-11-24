@@ -125,7 +125,7 @@ def convert_expression(node, frame):
     elif isinstance(node, (ast.BoolOp, ast.Compare)):
         return convert_boolean_operation(node, frame)
     else:
-        raise RuntimeError("Unknown expression \n{}".format(prettyparsetext(node)))
+        raise RuntimeError("Unknown expression \n{}".format(node))
 
 
 def convert_unary_operation(node, frame):
@@ -252,12 +252,17 @@ def convert_function_def(node, frame):
     func_ret_type = determine_variable_type(returns)
     frame[name] = func_ret_type
 
+    # Create local frame internal to function
+    local_frame = {k: v for k, v in frame.items()}
+    for arg in args.args:
+        local_frame[arg.arg] = determine_variable_type(arg.annotation)
+
     return cgen.FunctionBody(
         cgen.FunctionDeclaration(
             convert_variable_declaration(returns, name),
             convert_argument_declarations(args)
         ),
-        cgen.Block(contents=convert_body(body, frame))
+        cgen.Block(contents=convert_body(body, local_frame))
     )
 
 
@@ -472,6 +477,36 @@ def convert_if(node, frame):
     )
 
 
+def convert_while(node, frame):
+    """Convert a while statement to valid c version."""
+    condition = node.test
+    body = node.body
+    orelse = node.orelse
+
+    # TODO: Add logic for orelse statememts
+    #iter_val = node.target
+    #iterable = node.iter
+    #body = node.body
+    #orelse = node.orelse
+
+    #start, stop, step = convert_range_to_params(iterable, frame)
+
+    #local_frame = {k: v for k, v in frame.items()}
+    #local_frame[iter_val.id] = "int"
+
+    #return cgen.For(
+    #    str(assignment_from_parts("int", iter_val.id, start))[:-1],  # last part has extra semicolon
+    #    "{} < {}".format(iter_val.id, stop),
+    #    "{} += {}".format(iter_val.id, step),
+    #    cgen.Block(contents=convert_body(body, local_frame))
+    #)
+
+    return cgen.While(
+        convert_boolean_operation(condition, frame),
+        cgen.Block(contents=convert_body(body, frame))
+    )
+
+
 def convert_statement(node, frame):
     """Ceck for the type of statement and convert it appropriately.
     If the frame can be changed such as in an assignment, the frame
@@ -494,8 +529,10 @@ def convert_statement(node, frame):
         return convert_for_loop(node, frame)
     elif isinstance(node, ast.If):
         return convert_if(node, frame)
+    elif isinstance(node, ast.While):
+        return convert_while(node, frame)
     else:
-        raise RuntimeError("Unknown statement \n{}".format(prettyparsetext(node)))
+        raise RuntimeError("Unknown statement \n{}".format(node))
 
 
 def convert_body(nodes, frame):
