@@ -16,6 +16,7 @@ Hello world
 
 ## TODO
 - Implement conversion of control flow
-  - If/elif/else
-  - for/while
+  - while
+  - with
+- Reduce number of scoping using parenthesis by not encapsulating function calls or single variables or hardocded types. Only encapsulate expressions with parenthesis.
 - Cleanup and modularize c_conversions.py

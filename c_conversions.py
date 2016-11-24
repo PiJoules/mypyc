@@ -51,6 +51,7 @@ def convert_argument_declarations(args):
 
 def convert_operation(node):
     """Convert a binary or unary operand to the corresponding valid c operation."""
+    # TODO: Check python version for @ operation, matrix multiplication (v3.5)
     if isinstance(node, (ast.Add, ast.UAdd)):
         return "+"
     elif isinstance(node, (ast.Sub, ast.USub)):
@@ -73,12 +74,30 @@ def convert_operation(node):
         return "^"
     elif isinstance(node, ast.BitAnd):
         return "&"
-    elif isinstance(node, ast.MatMult):
-        raise RuntimeError("TODO: Implement matrix multiplication operations")
-    elif isinstance(node, (ast.Not, ast.Invert)):
-        # TODO: Implement different logic between boolean not (not) and bitwise
-        # not (~)
+    elif isinstance(node, ast.Not):
+        return "!"
+    elif isinstance(node, ast.Invert):
         return "~"
+    elif isinstance(node, ast.And):
+        return "&&"
+    elif isinstance(node, ast.Or):
+        return "||"
+    elif isinstance(node, (ast.Eq, ast.Is)):
+        # TODO: Implement separate logic for is
+        return "=="
+    elif isinstance(node, (ast.NotEq, ast.IsNot)):
+        # TODO: Implement separate logic for is not
+        return "!="
+    elif isinstance(node, ast.Lt):
+        return "<"
+    elif isinstance(node, ast.LtE):
+        return "<="
+    elif isinstance(node, ast.Gt):
+        return ">"
+    elif isinstance(node, ast.GtE):
+        return ">="
+    elif isinstance(node, (ast.In, ast.NotIn)):
+        raise RuntimeError("TODO: Implement logic for in and not in operations")
     else:
         raise RuntimeError("Uknown binary operation {}".format(node))
 
@@ -103,6 +122,8 @@ def convert_expression(node, frame):
         return convert_attribute(node)
     elif isinstance(node, ast.UnaryOp):
         return convert_unary_operation(node, frame)
+    elif isinstance(node, (ast.BoolOp, ast.Compare)):
+        return convert_boolean_operation(node, frame)
     else:
         raise RuntimeError("Unknown expression \n{}".format(prettyparsetext(node)))
 
@@ -243,7 +264,11 @@ def convert_function_def(node, frame):
 def convert_assign(node, frame):
     """Convert a variable assignment to valid c declaration.
 
-    TODO: Add checking for if using global statement to use global variable."""
+    TODO: Add checking for if using global statement to use global variable.
+
+    Returns:
+        cgen.Assign
+    """
     lhs = node.targets
     rhs = node.value
 
@@ -269,6 +294,23 @@ def convert_assign(node, frame):
     )
 
 
+def assignment_from_parts(var_type, var_name, rhs):
+    """Convert a type, name, and rhs expression to an assignment node.
+
+    Args:
+        var_type (str)
+        var_name (str)
+        rhs (str)
+
+    Returns:
+        cgen.Assign
+    """
+    return cgen.Assign(
+        lvalue=convert_value_declaration(var_type, var_name),
+        rvalue=rhs
+    )
+
+
 def convert_import(node):
     """Convert a single python import to a list of c includes."""
     imports = []
@@ -278,10 +320,166 @@ def convert_import(node):
     return imports
 
 
+def convert_range_to_params(node, frame):
+    """Find the starting value, ending value, and step for a range function call.
+
+    Args:
+        node: (ast.Call): the range function call
+
+    Returns:
+        str: start
+        str: end
+        str: step
+    """
+    args = node.args
+    if len(args) == 1:
+        return "0", convert_expression(node.args[0], frame), "1"
+    elif len(args) == 2:
+        return (
+            convert_expression(node.args[0], frame),
+            convert_expression(node.args[1], frame),
+            "1"
+        )
+    else:
+        return (
+            convert_expression(node.args[0], frame),
+            convert_expression(node.args[1], frame),
+            convert_expression(node.args[2], frame)
+        )
+
+
+def convert_value_declaration(var_type, var_name, with_semicolon=False):
+    """Wrapper for cgen.Value."""
+    return cgen.Value(var_type, var_name).inline(with_semicolon=with_semicolon)
+
+
+def regular_iteration(node, frame):
+    """Regular for loop iteration in c from python for loop iteration using
+    range.
+
+    Returns:
+        cgen.For
+    """
+    iter_val = node.target
+    iterable = node.iter
+    body = node.body
+    orelse = node.orelse
+
+    start, stop, step = convert_range_to_params(iterable, frame)
+
+    local_frame = {k: v for k, v in frame.items()}
+    local_frame[iter_val.id] = "int"
+
+    return cgen.For(
+        str(assignment_from_parts("int", iter_val.id, start))[:-1],  # last part has extra semicolon
+        "{} < {}".format(iter_val.id, stop),
+        "{} += {}".format(iter_val.id, step),
+        cgen.Block(contents=convert_body(body, local_frame))
+    )
+
+
+def convert_for_loop(node, frame):
+    """Convert a python for loop to a c for loop.
+    If using range, convert to for loop iteration in c.
+    """
+    iter_val = node.target
+    iterable = node.iter
+    body = node.body
+    orelse = node.orelse
+
+    # TODO: Implement orelse logic
+    # Move into orelse block if we do not break out this for loop
+
+    if isinstance(iterable, ast.Call) and iterable.func.id == "range":
+        # Iteration
+        return regular_iteration(node, frame)
+
+    raise RuntimeError("TODO: Implement iterator logic")
+
+
+def convert_comparison(node, frame):
+    """Convert a multi-comparison boolean operation to a conjunction of the
+    individual comparisons.
+
+    Returns:
+        str
+    """
+    if len(node.ops) == 1:
+        return "{} {} {}".format(
+            convert_expression(node.left, frame),
+            convert_operation(node.ops[0]),
+            convert_expression(node.comparators[0], frame)
+        )
+
+    # Create list of size 1 comparisons
+    values = [Compare(
+        left=node.left,
+        ops=[node.ops[0]],
+        comparators=[node.comparators[0]]
+    )]
+    for i in range(1, len(node.ops)):
+        values.append(Compare(
+            left=node.comparators[i-1],
+            ops=[node.ops[i]],
+            comparators=[node.comparators[i]]
+        ))
+
+    return convert_boolean_operation(
+        ast.BoolOp(
+            op=ast.And(),
+            values=values
+        ),
+        frame
+    )
+
+
+def convert_boolean_operation(node, frame):
+    """Convert a boolean operation/comparison to c representation.
+
+    Returns:
+        str
+    """
+    if isinstance(node, ast.Compare):
+        return convert_comparison(node, frame)
+
+    if isinstance(node, ast.UnaryOp):
+        return convert_unary_operation(node, frame)
+
+    delimiter = " {} ".format(convert_operation(node.op))
+    return delimiter.join("({})".format(convert_expression(n, frame)) for n in node.values)
+
+
+def convert_if(node, frame):
+    """Convert python if statement to c if statement.
+    If/elif/else ladders are nested if else nodes"""
+    condition = node.test
+    body = node.body
+    orelse = node.orelse  # list
+
+    if orelse:
+        if len(orelse) == 1 and isinstance(orelse[0], ast.If):
+            # elif ladder
+            rest = convert_if(orelse[0], frame)
+        else:
+            rest = cgen.Block(contents=convert_body(orelse, frame))
+    else:
+        rest = None
+
+    return cgen.If(
+        convert_boolean_operation(condition, frame), # str
+        cgen.Block(contents=convert_body(body, frame)), # block
+        else_=rest
+    )
+
+
 def convert_statement(node, frame):
     """Ceck for the type of statement and convert it appropriately.
     If the frame can be changed such as in an assignment, the frame
-    may also be changed."""
+    may also be changed.
+
+    Returns:
+        cgen.Generable: the corresponding c ast node
+    """
     if isinstance(node, ast.FunctionDef):
         return convert_function_def(node, frame)
     elif isinstance(node, ast.Return):
@@ -292,6 +490,10 @@ def convert_statement(node, frame):
         return convert_assign(node, frame)
     elif isinstance(node, ast.Import):
         raise RuntimeError("Imports should have already been processed beforehand.")
+    elif isinstance(node, ast.For):
+        return convert_for_loop(node, frame)
+    elif isinstance(node, ast.If):
+        return convert_if(node, frame)
     else:
         raise RuntimeError("Unknown statement \n{}".format(prettyparsetext(node)))
 
