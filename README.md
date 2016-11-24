@@ -9,8 +9,15 @@ In active development
   - nose
 
 
-## Usage
+## Building
+Inside a virtualenv, pip install the dependencies.
+```sh
+$ pip install -r requirements.txt
 ```
+
+
+## Usage
+```sh
 $ python mypyc.py sample_python_scripts/hello_world.py  # creates sample_python_scripts/hello_world.c and sample_python_scripts/hello_world executable
 $ ./sample_python_scripts/hello_world
 Hello world
@@ -18,7 +25,7 @@ Hello world
 
 ## Testing
 In the root directory of this repo, run
-```
+```sh
 $ nosetests
 ```
 
