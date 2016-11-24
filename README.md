@@ -32,8 +32,9 @@ $ nosetests
 
 ## TODO
 - Implement conversion of control flow
-  - while
   - with
+  - break/continue
+  - try/raiseing exceptions
 - Reduce number of scoping using parenthesis by not encapsulating function calls or single variables or hardocded types. Only encapsulate expressions with parenthesis.
 - Cleanup and modularize c_conversions.py
   - Cleanup the assignment functions
@@ -42,3 +43,8 @@ $ nosetests
   - For `degrees.py`, use assertAlmostEqual to check the floating point outputs
   - Code generation for each integration test sample script
   - Come up with a test that involves assignment not using the test.py script
+- Builtin data structures
+  - Strings
+  - Sets
+  - Dictionaries
+  - Lists
