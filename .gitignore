@@ -5,8 +5,10 @@ test
 *.o
 test_dir/
 pc-venv/
-samples/*
 
+tests/integration_tests/expected_outputs/*.output
+
+samples/*
 !samples/*.pc
 
 test_python_scripts/*

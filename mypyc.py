@@ -28,8 +28,9 @@ def save_c_code(c_code, filename):
     return c_file
 
 
-def compile_c_code(filename, compiler="gcc", standard="c11"):
-    base_name, ext = os.path.splitext(filename)
+def compile_c_code(filename, compiler="gcc", standard="c11", output=None):
+    if output is None:
+        output, ext = os.path.splitext(filename)
 
     files = [filename] + SOURCE_FILES
 
@@ -37,11 +38,21 @@ def compile_c_code(filename, compiler="gcc", standard="c11"):
     cmd = cmd.format(
         compiler=compiler,
         standard=standard,
-        output=base_name,
+        output=output,
         files=" ".join(files),
     )
 
     assert not subprocess.check_call(cmd.split())
+    return output
+
+
+def compile_py_file(full_path, **kwargs):
+    """Wrapper for save_c_code and compile_c_code."""
+    node = ast_from_file(full_path)
+    c_ast = convert_module(node)
+    c_code = str(c_ast)
+    c_file = save_c_code(c_code, full_path)
+    return compile_c_code(c_file, **kwargs)
 
 
 def get_args():
@@ -50,6 +61,13 @@ def get_args():
     parser = ArgumentParser(description="Python to C converter")
 
     parser.add_argument("filename", help="Python file to convert.")
+    parser.add_argument("-o", "--output", help="Output file.")
+
+    # Compiler options
+    parser.add_argument("-c", "--compiler", default="gcc",
+                        help="Compiler to use")
+    parser.add_argument("--std", default="c11",
+                        help="C Standard to use.")
 
     # Debug options
     parser.add_argument("-p", "--python-ast-dump", action="store_true",
@@ -76,7 +94,7 @@ def main():
 
     # Save into c file and compile
     c_file = save_c_code(c_code, filename)
-    compile_c_code(c_file)
+    compile_c_code(c_file, compiler=args.compiler, standard=args.std, output=args.output)
 
     return
 

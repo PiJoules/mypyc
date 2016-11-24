@@ -1,0 +1,8 @@
+180 deg to radians: 3.141593
+hardcoded 3.14159 to degrees: 179.999847
+builtin math.pi to degrees: 180.000000
+-40 deg fahrenheit to celsius: -40.000000
+-459.67 deg fahrenheit to celsius: -273.150024
+-40 deg celsius to fahrenheit: -40.000000
+0 deg celsius to kelvin: 273.149994
+0 deg kelvin to celsius: -273.149994
