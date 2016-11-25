@@ -10,4 +10,8 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+// Builtin functions/objects
+#include <list_obj.h>
+#include <string_obj.h>
+
 #endif

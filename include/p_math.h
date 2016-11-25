@@ -2,8 +2,6 @@
 #define _P_MATH_H
 
 typedef struct p_math p_math;
-
-
 struct p_math {
     // Constants
     float pi;

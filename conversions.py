@@ -431,7 +431,8 @@ def convert_import(node):
     """
     imports = []
     for alias in node.names:
-        imports.append(cgen.Include(create_module(alias.name)))
+        module_name = alias.name
+        imports.append(cgen.Include(create_module(module_name)))
     return imports
 
 
