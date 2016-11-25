@@ -16,6 +16,9 @@ Conversions
 """
 
 
+MAIN_HEADER = "mypyc.h"
+
+
 # Nodes that are allowed to stay in the body of a module without having to be
 # wrapped in a function
 VALID_MODULE_NODES = (
@@ -25,18 +28,47 @@ VALID_MODULE_NODES = (
     ast.Assign,
 )
 
-
-IMPORTED_MODULES = set()
-
+IGNORED_BODY_NODES = (
+    ast.Pass,
+    ast.Import,
+)
 
 BUILTIN_FUNCTIONS = set([
     "print",
 ])
 
 
-BUILTIN_MODULES = set([
-    "math",
-])
+# Map between builtin modules to corresponding headers
+BUILTIN_MODULES = {
+    "math": "p_math.h",
+}
+
+
+"""
+Util functions
+"""
+
+
+def copy_frame(frame):
+    """Create shallow copy of frame."""
+    return {k: v for k, v in frame.items()}
+
+
+def create_module(module_name):
+    """Create the module if it is not a builtin one. Otherwise, change the name.
+
+    Returns:
+        str: The name of the imported header for the module.
+    """
+    if module_name in BUILTIN_MODULES:
+        return BUILTIN_MODULES[module_name]
+    else:
+        raise NotImplementedError("TODO: Implement module creation")
+
+
+"""
+Node conversion functions
+"""
 
 
 def convert_variable_declaration(node, name):
@@ -253,7 +285,7 @@ def convert_function_def(node, frame):
     frame[name] = func_ret_type
 
     # Create local frame internal to function
-    local_frame = {k: v for k, v in frame.items()}
+    local_frame = copy_frame(frame)
     for arg in args.args:
         local_frame[arg.arg] = determine_variable_type(arg.annotation)
 
@@ -266,8 +298,9 @@ def convert_function_def(node, frame):
     )
 
 
-def convert_assignment(node, frame, assign_op="="):
+def convert_assignment(node, frame):
     """Convert a variable assignment to valid c declaration.
+    This also adds the variable in the frame.
 
     TODO: Add checking for if using global statement to use global variable.
 
@@ -283,45 +316,58 @@ def convert_assignment(node, frame, assign_op="="):
     lhs = lhs[0]
     name = lhs.id
 
-    rvalue = convert_expression(rhs, frame)
-    return convert_assignment_from_parts(name, rhs, frame, assign_op=assign_op)
-
-
-def convert_assignment_from_parts(target_name, rhs_node, frame, assign_op="="):
-    if target_name not in frame:
-        target_type = determine_expr_type(rhs_node, frame)
-        frame[target_name] = target_type
-        lvalue = convert_value_declaration(target_type, target_name)
+    if name not in frame:
+        var_type = determine_expr_type(rhs, frame)
+        frame[name] = var_type
     else:
-        lvalue = target_name
+        # Do not redeclare variable
+        var_type = None
 
-    return cgen.Statement("{} {} {}".format(lvalue, assign_op, convert_expression(rhs_node, frame)))
-
-
-
-def raw_assignment_from_parts(var_type, var_name, rhs):
-    """Convert a type, name, and rhs expression to an assignment node.
-
-    Args:
-        var_type (str)
-        var_name (str)
-        rhs (str)
-
-    Returns:
-        cgen.Assign
-    """
-    return cgen.Assign(
-        lvalue=convert_value_declaration(var_type, var_name),
-        rvalue=rhs
+    return assignment_from_parts(
+        name, convert_expression(rhs, frame), with_semicolon=True,
+        var_type=var_type
     )
 
 
+def assignment_from_parts(var_name, rhs, with_semicolon=False, op="=", var_type=None):
+    """Create an assignment node from the variable type, name, and rhs expression.
+
+    [var_type] var_name assign_op rhs[;]
+
+    Args:
+        var_name (str)
+        rhs (str)
+        with_semicolon (bool)
+        op (str)
+        var_type (str)
+
+    Returns:
+        cgen.Line
+    """
+    line = "{var_name} {op} {rhs}{last}"
+    if var_type is not None:
+        line = "{var_type} " + line
+    line = line.format(
+        var_type=var_type,
+        var_name=var_name,
+        op=op,
+        rhs=rhs,
+        last=(";" if with_semicolon else "")
+    )
+
+
+    return cgen.Line(text=line)
+
+
 def convert_import(node):
-    """Convert a single python import to a list of c includes."""
+    """Convert a single python import to a list of c includes.
+
+    Returns:
+        List[cgen.Import]
+    """
     imports = []
     for alias in node.names:
-        IMPORTED_MODULES.add(alias.name)
-        imports.append(cgen.Include("p_" + alias.name + ".h"))
+        imports.append(cgen.Include(create_module(alias.name)))
     return imports
 
 
@@ -354,7 +400,7 @@ def convert_range_to_params(node, frame):
 
 
 def convert_value_declaration(var_type, var_name, with_semicolon=False):
-    """Wrapper for cgen.Value."""
+    """Wrapper for declaring value without the semicolon."""
     return cgen.Value(var_type, var_name).inline(with_semicolon=with_semicolon)
 
 
@@ -372,11 +418,17 @@ def regular_iteration(node, frame):
 
     start, stop, step = convert_range_to_params(iterable, frame)
 
-    local_frame = {k: v for k, v in frame.items()}
+    local_frame = copy_frame(frame)
     local_frame[iter_val.id] = "int"
 
+
+
     return cgen.For(
-        str(raw_assignment_from_parts("int", iter_val.id, start))[:-1],  # last part has extra semicolon
+        assignment_from_parts(
+            iter_val.id,
+            start,
+            var_type="int"
+        ),
         "{} < {}".format(iter_val.id, stop),
         "{} += {}".format(iter_val.id, step),
         cgen.Block(contents=convert_body(body, local_frame))
@@ -493,9 +545,10 @@ def convert_while(node, frame):
 
 def convert_augmented_assignment(node, frame):
     """Convert aug assignments (+=, -=, *=) to valid c representations."""
-    return convert_assignment_from_parts(
-        node.target.id, node.value, frame,
-        assign_op=convert_operation(node.op) + "=")
+    return assignment_from_parts(
+        node.target.id, convert_expression(node.value, frame),
+        with_semicolon=True, op=(convert_operation(node.op) + "=")
+    )
 
 
 def convert_statement(node, frame):
@@ -533,8 +586,12 @@ def convert_body(nodes, frame):
     The frame is copied for new function bodies.
 
     TODO: Allow for variables declared in bodies of if statements and
-    while/for loops to persist out of that body."""
-    local_frame = {k: v for k, v in frame.items()}
+    while/for loops to persist out of that body.
+
+    Returns:
+        List[cgen.Generable]
+    """
+    local_frame = copy_frame(frame)
     body = []
 
     # Handle all imports first
@@ -543,17 +600,24 @@ def convert_body(nodes, frame):
             body += convert_import(node)
 
     # Convert remaining nodes that aren't pass or import
-    body += [convert_statement(n, local_frame) for n in nodes if not isinstance(n, (ast.Pass, ast.Import))]
+    body += [convert_statement(n, local_frame)
+             for n in nodes if not isinstance(n, IGNORED_BODY_NODES)]
 
     return body
 
 
-def convert_module(node):
-    """Convert a python module to a block of c code."""
+def convert_module(node, frame=None):
+    """Convert a python module to a block of c code.
 
-    body = [cgen.Include("mypyc.h")]
-    body += convert_body([n for n in node.body if isinstance(n, VALID_MODULE_NODES)], {})
+    Returns:
+        cgen.Module
+    """
+    frame = frame or {}
+
+    body = [cgen.Include(MAIN_HEADER)]
+    body += convert_body([n for n in node.body if isinstance(n, VALID_MODULE_NODES)], frame)
 
     return cgen.Module(contents=body)
+
 
 

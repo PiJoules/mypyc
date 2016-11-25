@@ -7,7 +7,7 @@ import os
 import subprocess
 
 from utils import *
-from c_conversions import *
+from conversions import *
 
 
 SOURCE_FILES = [

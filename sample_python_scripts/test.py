@@ -1,6 +1,3 @@
-import sys
-
-
 def func1():
     pass
 
@@ -20,5 +17,6 @@ def main(argc: int, argv: [str]) -> int:
 
 
 if __name__ == "__main__":
+    import sys
     main(len(sys.argv), sys.argv)
 
