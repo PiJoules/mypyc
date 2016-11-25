@@ -66,6 +66,93 @@ def create_module(module_name):
         raise NotImplementedError("TODO: Implement module creation")
 
 
+def params_from_range(node, frame):
+    """Find the starting value, ending value, and step for a range function call.
+
+    Args:
+        node: (ast.Call): the range function call
+
+    Returns:
+        str: start
+        str: end
+        str: step
+    """
+    args = node.args
+    if len(args) == 1:
+        return "0", convert_expression(node.args[0], frame), "1"
+    elif len(args) == 2:
+        return (
+            convert_expression(node.args[0], frame),
+            convert_expression(node.args[1], frame),
+            "1"
+        )
+    else:
+        return (
+            convert_expression(node.args[0], frame),
+            convert_expression(node.args[1], frame),
+            convert_expression(node.args[2], frame)
+        )
+
+
+def regular_iteration(node, frame):
+    """Regular for loop iteration in c from python for loop iteration using
+    range.
+
+    Returns:
+        cgen.For
+    """
+    iter_val = node.target
+    iterable = node.iter
+    body = node.body
+    orelse = node.orelse
+
+    start, stop, step = params_from_range(iterable, frame)
+
+    local_frame = copy_frame(frame)
+    local_frame[iter_val.id] = "int"
+
+    return cgen.For(
+        assignment_from_parts(
+            iter_val.id,
+            start,
+            var_type="int"
+        ),
+        "{} < {}".format(iter_val.id, stop),
+        "{} += {}".format(iter_val.id, step),
+        cgen.Block(contents=convert_body(body, local_frame))
+    )
+
+
+def assignment_from_parts(var_name, rhs, with_semicolon=False, op="=", var_type=None):
+    """Create an assignment node from the variable type, name, and rhs expression.
+
+    [var_type] var_name assign_op rhs[;]
+
+    Args:
+        var_name (str)
+        rhs (str)
+        with_semicolon (bool)
+        op (str)
+        var_type (str)
+
+    Returns:
+        cgen.Line
+    """
+    line = "{var_name} {op} {rhs}{last}"
+    if var_type is not None:
+        line = "{var_type} " + line
+    line = line.format(
+        var_type=var_type,
+        var_name=var_name,
+        op=op,
+        rhs=rhs,
+        last=(";" if with_semicolon else "")
+    )
+
+
+    return cgen.Line(text=line)
+
+
 """
 Node conversion functions
 """
@@ -252,7 +339,7 @@ def convert_call(node, frame):
     """Convert a python function call to the valid c representation.
 
     Returns:
-        str: The string representation of the equivalent c call.
+        cgen.Line
     """
     name = convert_attribute(node.func)
 
@@ -266,15 +353,22 @@ def convert_call(node, frame):
 
 
 def convert_return(node, frame):
-    """Convert a return node to valid c return statement."""
+    """Convert a return node to valid c return statement.
+
+    Returns:
+        cgen.Statement
+    """
     return cgen.Statement("return {}".format(convert_expression(node.value, frame)))
 
 
 def convert_function_def(node, frame):
     """Convert a python function definition to a valid c function definition.
     This function also adds the current function to the frame.
+
+    Returns:
+        cgen.FunctionBody
     """
-    name = node.name
+    func_name = node.name
     args = node.args
     body = node.body
     decs = node.decorator_list
@@ -282,7 +376,7 @@ def convert_function_def(node, frame):
 
     # Add the current function to the frame
     func_ret_type = determine_variable_type(returns)
-    frame[name] = func_ret_type
+    frame[func_name] = func_ret_type
 
     # Create local frame internal to function
     local_frame = copy_frame(frame)
@@ -291,7 +385,7 @@ def convert_function_def(node, frame):
 
     return cgen.FunctionBody(
         cgen.FunctionDeclaration(
-            convert_variable_declaration(returns, name),
+            convert_variable_declaration(returns, func_name),
             convert_argument_declarations(args)
         ),
         cgen.Block(contents=convert_body(body, local_frame))
@@ -329,36 +423,6 @@ def convert_assignment(node, frame):
     )
 
 
-def assignment_from_parts(var_name, rhs, with_semicolon=False, op="=", var_type=None):
-    """Create an assignment node from the variable type, name, and rhs expression.
-
-    [var_type] var_name assign_op rhs[;]
-
-    Args:
-        var_name (str)
-        rhs (str)
-        with_semicolon (bool)
-        op (str)
-        var_type (str)
-
-    Returns:
-        cgen.Line
-    """
-    line = "{var_name} {op} {rhs}{last}"
-    if var_type is not None:
-        line = "{var_type} " + line
-    line = line.format(
-        var_type=var_type,
-        var_name=var_name,
-        op=op,
-        rhs=rhs,
-        last=(";" if with_semicolon else "")
-    )
-
-
-    return cgen.Line(text=line)
-
-
 def convert_import(node):
     """Convert a single python import to a list of c includes.
 
@@ -371,73 +435,12 @@ def convert_import(node):
     return imports
 
 
-def convert_range_to_params(node, frame):
-    """Find the starting value, ending value, and step for a range function call.
-
-    Args:
-        node: (ast.Call): the range function call
-
-    Returns:
-        str: start
-        str: end
-        str: step
-    """
-    args = node.args
-    if len(args) == 1:
-        return "0", convert_expression(node.args[0], frame), "1"
-    elif len(args) == 2:
-        return (
-            convert_expression(node.args[0], frame),
-            convert_expression(node.args[1], frame),
-            "1"
-        )
-    else:
-        return (
-            convert_expression(node.args[0], frame),
-            convert_expression(node.args[1], frame),
-            convert_expression(node.args[2], frame)
-        )
-
-
-def convert_value_declaration(var_type, var_name, with_semicolon=False):
-    """Wrapper for declaring value without the semicolon."""
-    return cgen.Value(var_type, var_name).inline(with_semicolon=with_semicolon)
-
-
-def regular_iteration(node, frame):
-    """Regular for loop iteration in c from python for loop iteration using
-    range.
-
-    Returns:
-        cgen.For
-    """
-    iter_val = node.target
-    iterable = node.iter
-    body = node.body
-    orelse = node.orelse
-
-    start, stop, step = convert_range_to_params(iterable, frame)
-
-    local_frame = copy_frame(frame)
-    local_frame[iter_val.id] = "int"
-
-
-
-    return cgen.For(
-        assignment_from_parts(
-            iter_val.id,
-            start,
-            var_type="int"
-        ),
-        "{} < {}".format(iter_val.id, stop),
-        "{} += {}".format(iter_val.id, step),
-        cgen.Block(contents=convert_body(body, local_frame))
-    )
-
-
 def convert_for_loop(node, frame):
     """Convert a python for loop to a c for loop.
     If using range, convert to for loop iteration in c.
+
+    Returns:
+        cgen.For
     """
     iter_val = node.target
     iterable = node.iter
@@ -459,7 +462,7 @@ def convert_comparison(node, frame):
     individual comparisons.
 
     Returns:
-        str
+        cgen.Line
     """
     if len(node.ops) == 1:
         return "{} {} {}".format(
@@ -491,10 +494,10 @@ def convert_comparison(node, frame):
 
 
 def convert_boolean_operation(node, frame):
-    """Convert a boolean operation/comparison to c representation.
+    """Convert a boolean/unary operation/comparison to c representation.
 
     Returns:
-        str
+        cgen.Line
     """
     if isinstance(node, ast.Compare):
         return convert_comparison(node, frame)
@@ -503,12 +506,18 @@ def convert_boolean_operation(node, frame):
         return convert_unary_operation(node, frame)
 
     delimiter = " {} ".format(convert_operation(node.op))
-    return delimiter.join("({})".format(convert_expression(n, frame)) for n in node.values)
+    return cgen.Line(
+        text=delimiter.join("({})".format(convert_expression(n, frame)) for n in node.values)
+    )
 
 
 def convert_if(node, frame):
     """Convert python if statement to c if statement.
-    If/elif/else ladders are nested if else nodes"""
+    If/elif/else ladders are nested if else nodes.
+
+    Returns:
+        cgen.If
+    """
     condition = node.test
     body = node.body
     orelse = node.orelse  # list
@@ -530,7 +539,11 @@ def convert_if(node, frame):
 
 
 def convert_while(node, frame):
-    """Convert a while statement to valid c version."""
+    """Convert a while statement to valid c version.
+
+    Returns:
+        cgen.While
+    """
     condition = node.test
     body = node.body
     orelse = node.orelse
@@ -544,7 +557,11 @@ def convert_while(node, frame):
 
 
 def convert_augmented_assignment(node, frame):
-    """Convert aug assignments (+=, -=, *=) to valid c representations."""
+    """Convert aug assignments (+=, -=, *=) to valid c representations.
+
+    Returns:
+        cgen.Line
+    """
     return assignment_from_parts(
         node.target.id, convert_expression(node.value, frame),
         with_semicolon=True, op=(convert_operation(node.op) + "=")

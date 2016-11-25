@@ -48,3 +48,4 @@ $ nosetests
   - Sets
   - Dictionaries
   - Lists
+- Memoize expression type extractions
