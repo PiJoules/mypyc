@@ -67,7 +67,7 @@ def update_variable_in_frame(frame, var_name, var_type):
     """
     if var_name not in frame:
         frame[var_name] = var_type
-    else:
+    elif frame[var_name] != var_type:
         frame[var_name].add_type(var_type)
 
 
@@ -155,19 +155,20 @@ def assignment_from_parts(var_name, rhs, with_semicolon=False, op="=", var_type=
     Returns:
         cgen.Line
     """
-    line = "{var_name} {op} {rhs}{last}"
-    if var_type is not None:
-        line = "{var_type} " + line
-    line = line.format(
-        var_type=var_type,
-        var_name=var_name,
-        op=op,
-        rhs=rhs,
-        last=(";" if with_semicolon else "")
+    return extended_cgen.Assign(
+        var_name, rhs, with_semicolon=with_semicolon, op=op, var_type=var_type
     )
-
-
-    return cgen.Line(text=line)
+    #line = "{var_name} {op} {rhs}{last}"
+    #if var_type is not None:
+    #    line = "{var_type} " + line
+    #line = line.format(
+    #    var_type=var_type,
+    #    var_name=var_name,
+    #    op=op,
+    #    rhs=rhs,
+    #    last=(";" if with_semicolon else "")
+    #)
+    #return cgen.Line(text=line)
 
 
 """
@@ -294,11 +295,14 @@ def convert_print_format(expr, frame):
     return expr_type, expr_fmt
 
 
-def convert_multiple_arg_print(node, frame):
+def multiple_arg_print(node, frame):
     """Convert a multiple argument print statement.
     Join all arguments by a single space.
 
     print(expr1, expr2, expr3, ...)
+
+    Returns:
+        str
     """
     args = node.args
     fmt_specifiers = []
@@ -312,25 +316,6 @@ def convert_multiple_arg_print(node, frame):
         fmt_specifiers=" ".join(fmt_specifiers),
         exprs=", ".join(exprs)
     )
-
-
-def convert_print(node, frame):
-    """Convert specific print statements to print formats."""
-    if len(node.args) == 1:
-        arg = node.args[0]
-        arg_type = determine_expr_type(arg, frame)
-        if arg_type == "int":
-            # TODO: Ensure that propper includes are added at the start of the
-            # file
-            return "printf(\"%d\\n\", {})".format(convert_expression(arg, frame))
-        elif arg_type == "char*":
-            return "printf(\"%s\\n\", {})".format(convert_expression(arg, frame))
-        elif arg_type == "float":
-            return "printf(\"%f\\n\", {})".format(convert_expression(arg, frame))
-        else:
-            raise RuntimeError("TODO: Implement handling of single print argument of type '{}'".format(arg_type))
-    else:
-        return convert_multiple_arg_print(node, frame)
 
 
 def convert_attribute(node):
@@ -347,7 +332,7 @@ def convert_attribute(node):
 
 def convert_builtin_function(node, frame):
     if node.func.id == "print":
-        return convert_print(node, frame)
+        return multiple_arg_print(node, frame)
     else:
         raise RuntimeError("Unknown builtin function {}".format(node.func.id))
 
@@ -427,12 +412,16 @@ def convert_assignment(node, frame):
     lhs = lhs[0]
     name = lhs.id
 
-    if name not in frame:
-        var_type = determine_expr_type(rhs, frame)
-        update_variable_in_frame(frame, name, var_type)
-    else:
-        # Do not redeclare variable
+    # Add the type to the current one only if it does not exist in the frame.
+    # If the variable exists, but the rhs does not match the previously
+    # set type, update it, and do not set the var type.
+
+    rhs_type = determine_expr_type(rhs, frame)
+    if name in frame:
         var_type = None
+    else:
+        var_type = rhs_type
+    update_variable_in_frame(frame, name, rhs_type)
 
     return assignment_from_parts(
         name, convert_expression(rhs, frame), with_semicolon=True,

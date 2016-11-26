@@ -5,99 +5,16 @@ Functions for determining different features about ast nodes.
 """
 
 from utils import *
+from builtin_types import *
 
+import ast
 
-"""
-Types
-"""
-
-
-class Type(object):
-    def __init__(self, name):
-        self.__first_name = name
-        self.__names = set([name])
-        self.__reset_mult_type_name()
-
-    def add_type(self, name):
-        if name not in self.__names:
-            if isinstance(name, str):
-                self.__names.add(name)
-                self.__mult_type_name += self.__var_name_abbreviation(name)
-            else:
-                self.__names |= name.names()
-                self.__reset_mult_type_name()
-
-    def __reset_mult_type_name(self):
-        self.__mult_type_name = "mult_type_" + "".join(self.__var_name_abbreviation(n) for n in self.__names)
-
-    def __var_name_abbreviation(self, name):
-        """The struct representing the name of the type containing multiple
-        types will be mult_type_ followed by the first characters of the
-        contained types.
-
-        Pointers will have the character follwed by the depth of the pointer.
-
-        For example:
-            [int] -> "int"
-            [char*] -> "char*"
-            [int, float] -> "mult_type_if" (or "mult_type_fi")
-            [char*, char] -> "mult_type_c1c" (or "mult_type_cc1")
-            [int, float, char**] -> "mult_type_ifc2" (or ...)
-        """
-        return name[0] + str(name.count("*"))
-
-    def types(self):
-        return self.__names
-
-    def type_name(self):
-        if len(self.__names) == 1:
-            return self.__first_name
-        else:
-            return self.__multi_type_name
-
-    def __str__(self):
-        return self.type_name()
-
-    def __eq__(self, other):
-        if isinstance(other, str):
-            return self.type_name() == other
-        elif isinstance(other, Type):
-            return self.type_name() == other.type_name()
-        else:
-            raise NotImplementedError("Cannot compare Type with {}".format(type(other)))
-
-    def __hash__(self):
-        return hash(frozenset(self.__names))
-
-
-class PointerType(Type):
-    def __init__(self, t):
-        super().__init__(str(t) + "*")
-
-
-
-"""
-Primitive data types
-"""
-
-class IntType(Type):
-    def __init__(self):
-        super().__init__("int")
-
-
-class FloatType(Type):
-    def __init__(self):
-        super().__init__("float")
-
-
-class VoidType(Type):
-    def __init__(self):
-        super().__init__("void")
-
-
-class StrType(Type):
-    def __init__(self):
-        super().__init__("char*")
+# AST primitives
+PRIMITIVE_AST_NODES = (
+    ast.Num,
+    ast.Str,
+    ast.Bytes,
+)
 
 
 """
@@ -150,10 +67,6 @@ def determine_expr_type(expr, frame):
     """Determine the type of an expression and potentially add it to the frame."""
     if isinstance(expr, ast.Call):
         return determine_function_return_type(expr, frame)
-    elif isinstance(expr, ast.Name):
-        if expr.id not in frame:
-            raise RuntimeError("Unable to find variable/function '{}' in frame: {}".format(expr.id, list(frame.keys())))
-        return frame[expr.id]
     elif isinstance(expr, ast.UnaryOp):
         return determine_expr_type(expr.operand, frame)
     elif isinstance(expr, ast.BinOp):
@@ -162,8 +75,18 @@ def determine_expr_type(expr, frame):
     elif isinstance(expr, (ast.Compare, ast.BoolOp)):
         # All boolean expressions will default to int for now
         return IntType()
-    else:
+    elif isinstance(expr, PRIMITIVE_AST_NODES):
         return determine_literal_type(expr)
+    elif isinstance(expr, ast.Name):
+        if expr.id not in frame:
+            raise RuntimeError("Unable to find variable/function '{}' in frame: {}".format(expr.id, list(frame.keys())))
+        return frame[expr.id]
+    else:
+        raise RuntimeError("Unable to determine type for expression type {}".format(expr))
+
+
+def multi_type_format_specifier(mult_type, frame):
+    raise NotImplementedError
 
 
 def determine_format_specifier(expr, frame):
@@ -179,6 +102,9 @@ def determine_format_specifier(expr, frame):
         return "%d"
     elif arg_type == "float":
         return "%f"
+    elif arg_type.num_types():
+        # Calls a function that returns a string
+        return "%s"
     else:
         raise RuntimeError("TODO: Implement way of determining format specifier for {}".format(expr))
 
