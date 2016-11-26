@@ -9,6 +9,7 @@ from features import *
 
 import cgen
 import ast
+import extended_cgen
 
 
 """
@@ -44,6 +45,10 @@ BUILTIN_MODULES = {
 }
 
 
+GLOBAL_FRAME = {}
+MULTI_VAR_TYPES = set()
+
+
 """
 Util functions
 """
@@ -52,6 +57,18 @@ Util functions
 def copy_frame(frame):
     """Create shallow copy of frame."""
     return {k: v for k, v in frame.items()}
+
+
+def update_variable_in_frame(frame, var_name, var_type):
+    """Set a variable in thise frame. If the variable is already in the frame,
+    create a union that contains both types.
+
+    Also add to this type to a global list of types.
+    """
+    if var_name not in frame:
+        frame[var_name] = var_type
+    else:
+        frame[var_name].add_type(var_type)
 
 
 def create_module(module_name):
@@ -109,7 +126,7 @@ def regular_iteration(node, frame):
     start, stop, step = params_from_range(iterable, frame)
 
     local_frame = copy_frame(frame)
-    local_frame[iter_val.id] = "int"
+    update_variable_in_frame(local_frame, iter_val.id, IntType())
 
     return cgen.For(
         assignment_from_parts(
@@ -160,7 +177,7 @@ Node conversion functions
 
 def convert_variable_declaration(node, name):
     """Convert a python variable declaration to a c declaration."""
-    return cgen.Value(determine_variable_type(node), name)
+    return extended_cgen.Value(determine_variable_type(node), name)
 
 
 def convert_argument_declarations(args):
@@ -376,12 +393,12 @@ def convert_function_def(node, frame):
 
     # Add the current function to the frame
     func_ret_type = determine_variable_type(returns)
-    frame[func_name] = func_ret_type
+    update_variable_in_frame(frame, func_name, func_ret_type)
 
     # Create local frame internal to function
     local_frame = copy_frame(frame)
     for arg in args.args:
-        local_frame[arg.arg] = determine_variable_type(arg.annotation)
+        update_variable_in_frame(local_frame, arg.arg, determine_variable_type(arg.annotation))
 
     return cgen.FunctionBody(
         cgen.FunctionDeclaration(
@@ -412,7 +429,7 @@ def convert_assignment(node, frame):
 
     if name not in frame:
         var_type = determine_expr_type(rhs, frame)
-        frame[name] = var_type
+        update_variable_in_frame(frame, name, var_type)
     else:
         # Do not redeclare variable
         var_type = None
@@ -624,16 +641,17 @@ def convert_body(nodes, frame):
     return body
 
 
-def convert_module(node, frame=None):
+def convert_module(node):
     """Convert a python module to a block of c code.
 
     Returns:
         cgen.Module
     """
-    frame = frame or {}
-
     body = [cgen.Include(MAIN_HEADER)]
-    body += convert_body([n for n in node.body if isinstance(n, VALID_MODULE_NODES)], frame)
+    body += convert_body(
+        [n for n in node.body if isinstance(n, VALID_MODULE_NODES)],
+        GLOBAL_FRAME
+    )
 
     return cgen.Module(contents=body)
 

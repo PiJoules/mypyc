@@ -7,6 +7,104 @@ Functions for determining different features about ast nodes.
 from utils import *
 
 
+"""
+Types
+"""
+
+
+class Type(object):
+    def __init__(self, name):
+        self.__first_name = name
+        self.__names = set([name])
+        self.__reset_mult_type_name()
+
+    def add_type(self, name):
+        if name not in self.__names:
+            if isinstance(name, str):
+                self.__names.add(name)
+                self.__mult_type_name += self.__var_name_abbreviation(name)
+            else:
+                self.__names |= name.names()
+                self.__reset_mult_type_name()
+
+    def __reset_mult_type_name(self):
+        self.__mult_type_name = "mult_type_" + "".join(self.__var_name_abbreviation(n) for n in self.__names)
+
+    def __var_name_abbreviation(self, name):
+        """The struct representing the name of the type containing multiple
+        types will be mult_type_ followed by the first characters of the
+        contained types.
+
+        Pointers will have the character follwed by the depth of the pointer.
+
+        For example:
+            [int] -> "int"
+            [char*] -> "char*"
+            [int, float] -> "mult_type_if" (or "mult_type_fi")
+            [char*, char] -> "mult_type_c1c" (or "mult_type_cc1")
+            [int, float, char**] -> "mult_type_ifc2" (or ...)
+        """
+        return name[0] + str(name.count("*"))
+
+    def types(self):
+        return self.__names
+
+    def type_name(self):
+        if len(self.__names) == 1:
+            return self.__first_name
+        else:
+            return self.__multi_type_name
+
+    def __str__(self):
+        return self.type_name()
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.type_name() == other
+        elif isinstance(other, Type):
+            return self.type_name() == other.type_name()
+        else:
+            raise NotImplementedError("Cannot compare Type with {}".format(type(other)))
+
+    def __hash__(self):
+        return hash(frozenset(self.__names))
+
+
+class PointerType(Type):
+    def __init__(self, t):
+        super().__init__(str(t) + "*")
+
+
+
+"""
+Primitive data types
+"""
+
+class IntType(Type):
+    def __init__(self):
+        super().__init__("int")
+
+
+class FloatType(Type):
+    def __init__(self):
+        super().__init__("float")
+
+
+class VoidType(Type):
+    def __init__(self):
+        super().__init__("void")
+
+
+class StrType(Type):
+    def __init__(self):
+        super().__init__("char*")
+
+
+"""
+Feature extraction
+"""
+
+
 def determine_variable_type(node):
     """Determine the type of a variable node.
 
@@ -15,16 +113,17 @@ def determine_variable_type(node):
     """
     if node is None:
         # Nothing specified deafults to no return type
-        return "void"
+        return VoidType()
     elif isinstance(node, ast.Name):
         if node.id == "str":
             # Strings are represented as char pointers
-            return "char*"
+            return StrType()
         else:
-            return node.id
+            return Type(node.id)
     elif isinstance(node, ast.List):
         # Lists are represented as pointers to whatever they contain
-        return determine_variable_type(node.elts[0]) + "*"
+        #return determine_variable_type(node.elts[0]) + "*"
+        return PointerType(determine_variable_type(node.elts[0]))
     else:
         raise RuntimeError("Unknown var type '{}'".format(node))
 
@@ -32,9 +131,9 @@ def determine_variable_type(node):
 def determine_literal_type(expr):
     """Determine the type of a literal node."""
     if isinstance(expr, ast.Num):
-        return "int"
+        return IntType()
     elif isinstance(expr, ast.Str):
-        return "char*"
+        return StrType()
     else:
         raise RuntimeError("Unknown literal type\n{}".format(prettyparsetext(expr)))
 
@@ -62,7 +161,7 @@ def determine_expr_type(expr, frame):
         return determine_expr_type(expr.left, frame)
     elif isinstance(expr, (ast.Compare, ast.BoolOp)):
         # All boolean expressions will default to int for now
-        return "int"
+        return IntType()
     else:
         return determine_literal_type(expr)
 

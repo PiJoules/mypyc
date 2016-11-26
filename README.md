@@ -51,3 +51,5 @@ $ nosetests
   - Dictionaries
   - Lists
 - Memoize expression type extractions
+- Support function types/assignment
+- Submit pull request to cgen for adding types
