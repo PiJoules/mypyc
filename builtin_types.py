@@ -71,27 +71,3 @@ class PointerType(Type):
     def __init__(self, t):
         super().__init__(str(t) + "*")
 
-
-
-"""
-Primitive data types
-"""
-
-class IntType(Type):
-    def __init__(self):
-        super().__init__("int")
-
-
-class FloatType(Type):
-    def __init__(self):
-        super().__init__("float")
-
-
-class VoidType(Type):
-    def __init__(self):
-        super().__init__("void")
-
-
-class StrType(Type):
-    def __init__(self):
-        super().__init__("char*")

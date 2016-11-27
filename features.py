@@ -30,11 +30,11 @@ def determine_variable_type(node):
     """
     if node is None:
         # Nothing specified deafults to no return type
-        return VoidType()
+        return Type("void")
     elif isinstance(node, ast.Name):
         if node.id == "str":
             # Strings are represented as char pointers
-            return StrType()
+            return Type("char*")
         else:
             return Type(node.id)
     elif isinstance(node, ast.List):
@@ -48,9 +48,9 @@ def determine_variable_type(node):
 def determine_literal_type(expr):
     """Determine the type of a literal node."""
     if isinstance(expr, ast.Num):
-        return IntType()
+        return Type("int")
     elif isinstance(expr, ast.Str):
-        return StrType()
+        return Type("char*")
     else:
         raise RuntimeError("Unknown literal type\n{}".format(prettyparsetext(expr)))
 
@@ -74,7 +74,7 @@ def determine_expr_type(expr, frame):
         return determine_expr_type(expr.left, frame)
     elif isinstance(expr, (ast.Compare, ast.BoolOp)):
         # All boolean expressions will default to int for now
-        return IntType()
+        return Type("int")
     elif isinstance(expr, PRIMITIVE_AST_NODES):
         return determine_literal_type(expr)
     elif isinstance(expr, ast.Name):

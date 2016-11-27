@@ -1,5 +1,5 @@
 *.exe
-c_tests/
+*.build/
 tmp/
 test
 *.out

@@ -31,6 +31,7 @@ $ nosetests
 
 
 ## TODO
+- Handle type inference for assignment before converting the rest of the nodes in a body
 - Figure out how to represent multiple tyes with the same variable
 - Explore idea of storing wrapper objects inside containers (dicts, sets, lists)
 - Implement conversion of control flow

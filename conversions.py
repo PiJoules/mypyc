@@ -126,10 +126,10 @@ def regular_iteration(node, frame):
     start, stop, step = params_from_range(iterable, frame)
 
     local_frame = copy_frame(frame)
-    update_variable_in_frame(local_frame, iter_val.id, IntType())
+    update_variable_in_frame(local_frame, iter_val.id, Type("int"))
 
     return cgen.For(
-        assignment_from_parts(
+        extended_cgen.Assign(
             iter_val.id,
             start,
             var_type="int"
@@ -140,35 +140,66 @@ def regular_iteration(node, frame):
     )
 
 
-def assignment_from_parts(var_name, rhs, with_semicolon=False, op="=", var_type=None):
-    """Create an assignment node from the variable type, name, and rhs expression.
+def type_to_var_name(var_type):
+    """Just replace all asterisks with an underscore followed by the pointer depth."""
+    return "{}_{}".format(str(var_type).replace("*", ""), str(var_type).count("*"))
 
-    [var_type] var_name assign_op rhs[;]
 
-    Args:
-        var_name (str)
-        rhs (str)
-        with_semicolon (bool)
-        op (str)
-        var_type (str)
+def create_multi_type_datatype(dt):
+    """Convert all Types to typedefs and struct definitions.
+    The conversion creates an enum definition and typedef, and
+    struct definition and typedef.
 
-    Returns:
-        cgen.Line
+    Example: for mult_type_ifc2 (int, float, char**)
+
+    typedef enum ElemType ElemType;
+    enum ElemType {
+        et_str,
+        et_int,
+        et_dbl,
+    };
+    typedef struct elem elem;
+    struct elem {
+        ElemType type;
+        union {
+            char* str;
+            int i;
+            double d;
+        };
+    };
     """
-    return extended_cgen.Assign(
-        var_name, rhs, with_semicolon=with_semicolon, op=op, var_type=var_type
+    # Enum typedef
+    type_name = dt.type_name()
+    dt_enum_name = "ElemType_" + type_name
+    enum_typedef = cgen.Typedef(extended_cgen.Value(
+        "enum {}".format(dt_enum_name),
+        dt_enum_name
+    ))
+
+    # Enum def
+    enum_def = extended_cgen.Enum(
+        dt_enum_name,
+        ["{}_{}".format(type_name, type_to_var_name(t)) for t in dt.types()],
+        with_semicolon=True
     )
-    #line = "{var_name} {op} {rhs}{last}"
-    #if var_type is not None:
-    #    line = "{var_type} " + line
-    #line = line.format(
-    #    var_type=var_type,
-    #    var_name=var_name,
-    #    op=op,
-    #    rhs=rhs,
-    #    last=(";" if with_semicolon else "")
-    #)
-    #return cgen.Line(text=line)
+
+    # Struct typedef
+    struct_typedef = cgen.Typedef(extended_cgen.Value(
+        "struct {}".format(type_name),
+        type_name
+    ))
+
+    # Struct def
+    struct_def = extended_cgen.Struct(
+        type_name,
+        [
+            "{} type".format(dt_enum_name),
+            extended_cgen.Union("", ["{} t{}".format(t, i) for i, t in enumerate(dt.types())])
+        ],
+        with_semicolon=True
+    )
+
+    return [enum_typedef, enum_def, struct_typedef, struct_def]
 
 
 """
@@ -423,10 +454,16 @@ def convert_assignment(node, frame):
         var_type = rhs_type
     update_variable_in_frame(frame, name, rhs_type)
 
-    return assignment_from_parts(
-        name, convert_expression(rhs, frame), with_semicolon=True,
-        var_type=var_type
-    )
+    if frame[name].num_types() == 1:
+        return extended_cgen.Assign(
+            name, convert_expression(rhs, frame), with_semicolon=True,
+            var_type=var_type
+        )
+    else:
+        return extended_cgen.AssignMultipleType(
+            name, convert_expression(rhs, frame), with_semicolon=True,
+            var_type=var_type
+        )
 
 
 def convert_import(node):
@@ -569,7 +606,7 @@ def convert_augmented_assignment(node, frame):
     Returns:
         cgen.Line
     """
-    return assignment_from_parts(
+    return extended_cgen.Assign(
         node.target.id, convert_expression(node.value, frame),
         with_semicolon=True, op=(convert_operation(node.op) + "=")
     )
@@ -627,6 +664,11 @@ def convert_body(nodes, frame):
     body += [convert_statement(n, local_frame)
              for n in nodes if not isinstance(n, IGNORED_BODY_NODES)]
 
+    # Catch any multiple type definitions
+    for t in local_frame.values():
+        if t.num_types() > 1:
+            MULTI_VAR_TYPES.add(t)
+
     return body
 
 
@@ -636,11 +678,17 @@ def convert_module(node):
     Returns:
         cgen.Module
     """
-    body = [cgen.Include(MAIN_HEADER)]
-    body += convert_body(
+    includes = [cgen.Include(MAIN_HEADER)]
+    body = convert_body(
         [n for n in node.body if isinstance(n, VALID_MODULE_NODES)],
         GLOBAL_FRAME
     )
+
+    # Add any custom type definitions to the body
+    for t in MULTI_VAR_TYPES:
+        body = create_multi_type_datatype(t) + body
+
+    body = includes + body
 
     return cgen.Module(contents=body)
 
