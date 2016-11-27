@@ -8,6 +8,10 @@ def main() -> int:
 
     x = "a"
     print(x)
+
+    x = 3.14
+    print(x)
+
     return 0
 
 

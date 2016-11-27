@@ -11,49 +11,53 @@ class Value(cgen.Value):
 
 
 class Assign(cgen.Generable):
-    def __init__(self, var_name, rhs, with_semicolon=False, op="=",
-                 var_type=None):
+    def __init__(self, var_type, var_name, rhs_type, rhs,
+                 with_semicolon=False, op="=", previously_declared=False):
         self.__var_name = var_name
+        self.__rhs_type = rhs_type
         self.__rhs = rhs
         self.__with_semicolon = with_semicolon
         self.__op = op
+        self.__previously_declared = previously_declared
         self.__var_type = var_type
 
     def generate(self):
-        line = "{var_name} {op} {rhs}{last}"
-        if self.__var_type is not None:
-            line = "{var_type} " + line
-        line = line.format(
-            var_type=self.__var_type,
-            var_name=self.__var_name,
-            op=self.__op,
-            rhs=self.__rhs,
-            last=(";" if self.__with_semicolon else "")
-        )
-        yield line
+        previously_declared = self.__previously_declared
+        var_type = self.__var_type
+        op = self.__op
 
+        if var_type.num_types() == 1:
+            line = "{var_name} {op} {rhs}{last}"
+            if not previously_declared:
+                line = "{var_type} " + line
+            line = line.format(
+                var_type=self.__var_type,
+                var_name=self.__var_name,
+                op=op,
+                rhs=self.__rhs,
+                last=(";" if self.__with_semicolon else "")
+            )
+            yield line
+        else:
+            if op != "=":
+                raise NotImplementedError("Implement calling of magic methods for augmented assignments.")
 
-class AssignMultipleType(Assign):
-    def __init__(self, var_name, rhs, with_semicolon=False, op="=",
-                 var_type=None):
-        self.__var_name = var_name
-        self.__rhs = rhs
-        self.__with_semicolon = with_semicolon
-        self.__op = op
-        self.__var_type = var_type
-
-    def generate(self):
-        line = "{var_name} {op} {rhs}{last}"
-        if self.__var_type is not None:
-            line = "{var_type} " + line
-        line = line.format(
-            var_type=self.__var_type,
-            var_name=self.__var_name,
-            op=self.__op,
-            rhs=self.__rhs,
-            last=(";" if self.__with_semicolon else "")
-        )
-        yield line
+            line = """{var_name} = ({var_type}){{
+    {enum_type},
+    .{attr}={rhs}
+}}{last}
+            """
+            if not previously_declared:
+                line = "{var_type} " + line
+            line = line.format(
+                var_type=var_type,
+                var_name=self.__var_name,
+                enum_type=var_type.enum_type(self.__rhs_type),
+                attr=var_type.attr_name(self.__rhs_type),
+                rhs=self.__rhs,
+                last=(";" if self.__with_semicolon else ""),
+            )
+            yield line
 
 
 class Grouping(cgen.Generable):

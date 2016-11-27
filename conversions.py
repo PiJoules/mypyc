@@ -130,9 +130,10 @@ def regular_iteration(node, frame):
 
     return cgen.For(
         extended_cgen.Assign(
+            Type("int"),
             iter_val.id,
+            Type("int"),
             start,
-            var_type="int"
         ),
         "{} < {}".format(iter_val.id, stop),
         "{} += {}".format(iter_val.id, step),
@@ -169,35 +170,16 @@ def create_multi_type_datatype(dt):
     };
     """
     # Enum typedef
-    type_name = dt.type_name()
-    dt_enum_name = "ElemType_" + type_name
-    enum_typedef = cgen.Typedef(extended_cgen.Value(
-        "enum {}".format(dt_enum_name),
-        dt_enum_name
-    ))
+    enum_typedef = dt.enum_typedef()
 
     # Enum def
-    enum_def = extended_cgen.Enum(
-        dt_enum_name,
-        ["{}_{}".format(type_name, type_to_var_name(t)) for t in dt.types()],
-        with_semicolon=True
-    )
+    enum_def = dt.enum_def()
 
     # Struct typedef
-    struct_typedef = cgen.Typedef(extended_cgen.Value(
-        "struct {}".format(type_name),
-        type_name
-    ))
+    struct_typedef = dt.struct_typedef()
 
     # Struct def
-    struct_def = extended_cgen.Struct(
-        type_name,
-        [
-            "{} type".format(dt_enum_name),
-            extended_cgen.Union("", ["{} t{}".format(t, i) for i, t in enumerate(dt.types())])
-        ],
-        with_semicolon=True
-    )
+    struct_def = dt.struct_def()
 
     return [enum_typedef, enum_def, struct_typedef, struct_def]
 
@@ -448,22 +430,14 @@ def convert_assignment(node, frame):
     # set type, update it, and do not set the var type.
 
     rhs_type = determine_expr_type(rhs, frame)
-    if name in frame:
-        var_type = None
-    else:
-        var_type = rhs_type
+    previously_declared = name in frame
     update_variable_in_frame(frame, name, rhs_type)
 
-    if frame[name].num_types() == 1:
-        return extended_cgen.Assign(
-            name, convert_expression(rhs, frame), with_semicolon=True,
-            var_type=var_type
-        )
-    else:
-        return extended_cgen.AssignMultipleType(
-            name, convert_expression(rhs, frame), with_semicolon=True,
-            var_type=var_type
-        )
+    return extended_cgen.Assign(
+        frame[name], name, rhs_type.clone(), convert_expression(rhs, frame),
+        with_semicolon=True,
+        previously_declared=previously_declared
+    )
 
 
 def convert_import(node):
@@ -607,8 +581,10 @@ def convert_augmented_assignment(node, frame):
         cgen.Line
     """
     return extended_cgen.Assign(
-        node.target.id, convert_expression(node.value, frame),
-        with_semicolon=True, op=(convert_operation(node.op) + "=")
+        frame[node.target.id], node.target.id, frame[node.target.id],
+        convert_expression(node.value, frame),
+        with_semicolon=True, op=(convert_operation(node.op) + "="),
+        previously_declared=True
     )
 
 

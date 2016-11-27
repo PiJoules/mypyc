@@ -48,7 +48,12 @@ def determine_variable_type(node):
 def determine_literal_type(expr):
     """Determine the type of a literal node."""
     if isinstance(expr, ast.Num):
-        return Type("int")
+        if isinstance(expr.n, int):
+            return Type("int")
+        elif isinstance(expr.n, float):
+            return Type("float")
+        else:
+            raise RuntimeError("Unknown literal num type for {}".format(expr.n))
     elif isinstance(expr, ast.Str):
         return Type("char*")
     else:
