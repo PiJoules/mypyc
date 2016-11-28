@@ -39,7 +39,6 @@ def determine_variable_type(node):
             return Type(node.id)
     elif isinstance(node, ast.List):
         # Lists are represented as pointers to whatever they contain
-        #return determine_variable_type(node.elts[0]) + "*"
         return PointerType(determine_variable_type(node.elts[0]))
     else:
         raise RuntimeError("Unknown var type '{}'".format(node))
@@ -90,10 +89,6 @@ def determine_expr_type(expr, frame):
         raise RuntimeError("Unable to determine type for expression type {}".format(expr))
 
 
-def multi_type_format_specifier(mult_type, frame):
-    raise NotImplementedError
-
-
 def determine_format_specifier(expr, frame):
     """Determine the format specifier for an expression node.
 
@@ -107,7 +102,7 @@ def determine_format_specifier(expr, frame):
         return "%d"
     elif arg_type == "float":
         return "%f"
-    elif arg_type.num_types():
+    elif arg_type.num_types() > 1:
         # Calls a function that returns a string
         return "%s"
     else:

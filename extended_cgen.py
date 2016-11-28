@@ -99,3 +99,49 @@ class Union(Grouping):
     SEPARATPOR = ";"
 
 
+class Expression(cgen.Generable):
+    def __init__(self, content):
+        self.__content = content
+
+    def generate(self):
+        yield str(self.__content)
+
+
+class CallExpression(cgen.Generable):
+    def __init__(self, name, args):
+        self.__name = name
+        self.__args = args
+
+    def generate(self):
+        yield "{name}({args})".format(
+            name=str(self.__name),
+            args=", ".join(map(str, self.__args))
+        )
+
+
+class CallMethod(cgen.Generable):
+    def __init__(self, obj, method, args, is_pointer=False):
+        self.__obj = obj
+        self.__method = method
+        self.__args = args
+        self.__is_pointer = is_pointer
+
+    def generate(self):
+        yield "{obj}{access}{method}({args})".format(
+            obj=str(self.__obj),
+            access=("->" if self.__is_pointer else "."),
+            method=str(self.__method),
+            args=", ".join(map(str, self.__args))
+        )
+
+
+class Variable(cgen.Generable):
+    def __init__(self, value, value_type):
+        self.__value = value
+        self.__type = value_type
+
+    def generate(self):
+        t = self.__type
+        yield str(self.__value)
+
+

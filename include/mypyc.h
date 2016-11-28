@@ -10,6 +10,10 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+// Object properties
+#define OBJECT_ATTRIBUTES(type) \
+    (char*) (*__str__)(type self);
+
 // Builtin functions/objects
 #include <list_obj.h>
 #include <string_obj.h>

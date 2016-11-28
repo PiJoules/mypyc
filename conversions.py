@@ -48,6 +48,14 @@ BUILTIN_MODULES = {
 GLOBAL_FRAME = {}
 MULTI_VAR_TYPES = set()
 
+# TODO: Add other builtin types that weren't covered
+BUILTIN_TYPES = set((
+    Type("void"),
+    Type("int"),
+    Type("float"),
+    Type("char*"),
+))
+
 
 """
 Util functions
@@ -141,11 +149,6 @@ def regular_iteration(node, frame):
     )
 
 
-def type_to_var_name(var_type):
-    """Just replace all asterisks with an underscore followed by the pointer depth."""
-    return "{}_{}".format(str(var_type).replace("*", ""), str(var_type).count("*"))
-
-
 def create_multi_type_datatype(dt):
     """Convert all Types to typedefs and struct definitions.
     The conversion creates an enum definition and typedef, and
@@ -195,12 +198,20 @@ def convert_variable_declaration(node, name):
 
 
 def convert_argument_declarations(args):
-    """Convert a list of argument declarations to c argument declarations."""
+    """Convert a list of argument declarations to c argument declarations.
+
+    Returns:
+        List[extended_cgen.Value]
+    """
     return [convert_variable_declaration(a.annotation, a.arg) for a in args.args]
 
 
-def convert_operation(node):
-    """Convert a binary or unary operand to the corresponding valid c operation."""
+def convert_operation_aux(node):
+    """Convert a binary or unary operand to the corresponding valid c operation.
+
+    Returns:
+        str
+    """
     # TODO: Check python version for @ operation, matrix multiplication (v3.5)
     if isinstance(node, (ast.Add, ast.UAdd)):
         return "+"
@@ -252,7 +263,24 @@ def convert_operation(node):
         raise RuntimeError("Uknown binary operation {}".format(node))
 
 
-def convert_expression(node, frame):
+def convert_operation(node):
+    """
+    Returns:
+        extended_cgen.Expression
+    """
+    return extended_cgen.Expression(convert_operation_aux(node))
+
+
+def convert_name(node, frame):
+    """Convert a call to a variable to the valid c representation.
+
+    Returns:
+        cgen.Expression
+    """
+    return extended_cgen.Variable(node.id, frame[node.id])
+
+
+def convert_expression_aux(node, frame):
     """Convert a python expression to the valid c code.
 
     Returns:
@@ -263,7 +291,7 @@ def convert_expression(node, frame):
     elif isinstance(node, ast.Str):
         return "\"{}\"".format(node.s)
     elif isinstance(node, ast.Name):
-        return node.id
+        return convert_name(node, frame)
     elif isinstance(node, ast.BinOp):
         return convert_binary_operation(node, frame)
     elif isinstance(node, ast.Call):
@@ -278,34 +306,33 @@ def convert_expression(node, frame):
         raise RuntimeError("Unknown expression \n{}".format(node))
 
 
+def convert_expression(node, frame):
+    """
+    Returns:
+        extended_cgen.Expression
+    """
+    return extended_cgen.Expression(convert_expression_aux(node, frame))
+
+
 def convert_unary_operation(node, frame):
-    """Convert a unary operation to valid c representation."""
-    return "{}({})".format(
+    """Convert a unary operation to valid c representation.
+
+    Returns:
+        extended_cgen.Expression
+    """
+    return extended_cgen.Expression("{}({})".format(
         convert_operation(node.op),
         convert_expression(node.operand, frame)
-    )
+    ))
 
 
 def convert_binary_operation(node, frame):
     """Convert a binary operation to the corresponding valid c code."""
-    return "({}) {} ({})".format(
+    return extended_cgen.Expression("({}) {} ({})".format(
         convert_expression(node.left, frame),
         convert_operation(node.op),
         convert_expression(node.right, frame)
-    )
-
-
-def convert_print_format(expr, frame):
-    """Convert an expression to the appropriate format specifier and valid
-    c representation.
-
-    Returns:
-        str: Format specifier
-        str: c expression
-    """
-    expr_type = determine_expr_type(expr, frame)
-    expr_fmt = convert_expression(expr, frame)
-    return expr_type, expr_fmt
+    ))
 
 
 def multiple_arg_print(node, frame):
@@ -315,7 +342,7 @@ def multiple_arg_print(node, frame):
     print(expr1, expr2, expr3, ...)
 
     Returns:
-        str
+        extended_cgen.Expression
     """
     args = node.args
     fmt_specifiers = []
@@ -323,11 +350,19 @@ def multiple_arg_print(node, frame):
 
     for arg in args:
         fmt_specifiers.append(determine_format_specifier(arg, frame))
-        exprs.append(convert_expression(arg, frame))
+        if not isinstance(arg, ast.Name) or frame[arg.id] in BUILTIN_TYPES:
+            exprs.append(convert_expression(arg, frame))
+        else:
+            # This is a variable that is not builtin
+            exprs.append(extended_cgen.CallMethod(
+                arg.id,
+                "__str__",
+                [arg.id]
+            ))
 
-    return "printf(\"{fmt_specifiers}\\n\", {exprs})".format(
-        fmt_specifiers=" ".join(fmt_specifiers),
-        exprs=", ".join(exprs)
+    return extended_cgen.CallExpression(
+        "printf",
+        ["\"{}\\n\"".format(" ".join(fmt_specifiers))] + exprs
     )
 
 
@@ -344,6 +379,14 @@ def convert_attribute(node):
 
 
 def convert_builtin_function(node, frame):
+    """
+    Builtin functions need to handle all types.
+    If the target is not a builtin type (user defined one or multiple type),
+    the target's __str__ method is called.
+
+    Returns:
+        extended_cgen.Expression
+    """
     if node.func.id == "print":
         return multiple_arg_print(node, frame)
     else:
@@ -354,16 +397,16 @@ def convert_call(node, frame):
     """Convert a python function call to the valid c representation.
 
     Returns:
-        cgen.Line
+        extended_cgen.Expression
     """
     name = convert_attribute(node.func)
 
     if name in BUILTIN_FUNCTIONS:
         return convert_builtin_function(node, frame)
 
-    return "{name}({args})".format(
-        name=name,
-        args=", ".join(convert_expression(a, frame) for a in node.args)
+    return extended_cgen.CallExpression(
+        name,
+        (convert_expression(a, frame) for a in node.args)
     )
 
 
@@ -371,9 +414,9 @@ def convert_return(node, frame):
     """Convert a return node to valid c return statement.
 
     Returns:
-        cgen.Statement
+        cgen.ExpressionStatement
     """
-    return cgen.Statement("return {}".format(convert_expression(node.value, frame)))
+    return cgen.ExpressionStatement("return {}".format(convert_expression(node.value, frame)))
 
 
 def convert_function_def(node, frame):
@@ -414,7 +457,7 @@ def convert_assignment(node, frame):
     TODO: Add checking for if using global statement to use global variable.
 
     Returns:
-        cgen.Assign
+        extended_cgen.Assign
     """
     lhs = node.targets
     rhs = node.value
@@ -480,14 +523,14 @@ def convert_comparison(node, frame):
     individual comparisons.
 
     Returns:
-        cgen.Line
+        extended_cgen.Expression
     """
     if len(node.ops) == 1:
-        return "{} {} {}".format(
+        return extended_cgen.Expression("{} {} {}".format(
             convert_expression(node.left, frame),
             convert_operation(node.ops[0]),
             convert_expression(node.comparators[0], frame)
-        )
+        ))
 
     # Create list of size 1 comparisons
     values = [Compare(
@@ -515,7 +558,7 @@ def convert_boolean_operation(node, frame):
     """Convert a boolean/unary operation/comparison to c representation.
 
     Returns:
-        cgen.Line
+        extended_cgen.Expression
     """
     if isinstance(node, ast.Compare):
         return convert_comparison(node, frame)
@@ -524,8 +567,8 @@ def convert_boolean_operation(node, frame):
         return convert_unary_operation(node, frame)
 
     delimiter = " {} ".format(convert_operation(node.op))
-    return cgen.Line(
-        text=delimiter.join("({})".format(convert_expression(n, frame)) for n in node.values)
+    return extended_cgen.Expression(
+        delimiter.join("({})".format(convert_expression(n, frame)) for n in node.values)
     )
 
 
@@ -578,12 +621,12 @@ def convert_augmented_assignment(node, frame):
     """Convert aug assignments (+=, -=, *=) to valid c representations.
 
     Returns:
-        cgen.Line
+        extended_cgen.Assign
     """
     return extended_cgen.Assign(
         frame[node.target.id], node.target.id, frame[node.target.id],
         convert_expression(node.value, frame),
-        with_semicolon=True, op=(convert_operation(node.op) + "="),
+        with_semicolon=True, op=(convert_operation_aux(node.op) + "="),
         previously_declared=True
     )
 
@@ -601,7 +644,7 @@ def convert_statement(node, frame):
     elif isinstance(node, ast.Return):
         return convert_return(node, frame)
     elif isinstance(node, ast.Expr):
-        return cgen.Statement(convert_expression(node.value, frame))
+        return cgen.ExpressionStatement(convert_expression(node.value, frame))
     elif isinstance(node, ast.Assign):
         return convert_assignment(node, frame)
     elif isinstance(node, ast.Import):
