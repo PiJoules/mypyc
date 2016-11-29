@@ -127,7 +127,7 @@ class Type(object):
         return extended_cgen.Struct(
             self.type_name(),
             [
-                "{} type".format(self.enum_name()),
+                cgen.Line("{} type".format(self.enum_name())),
                 extended_cgen.Union(
                     "",
                     ("{} {}".format(k, v) for k, v in self.__struct_attr_mapping.items())

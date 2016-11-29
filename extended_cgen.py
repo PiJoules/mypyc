@@ -70,18 +70,25 @@ class Grouping(cgen.Generable):
         self.__with_semicolon = with_semicolon
 
     def generate(self):
-        yield """{grouping_name} {name} {{
-    {attributes}
-}}{last}
-        """.format(
+        yield "{grouping_name} {name} {{".format(
             grouping_name=self.GROUPING_NAME,
-            name=self.__name,
-            attributes="".join(
-                ["    {line}{sep}\n".format(line=l, sep=self.SEPARATPOR)
-                 for l in map(str, self.__attrs)]
-            ),
-            last=";" if self.__with_semicolon else ""
+            name=self.__name
         )
+        for attr in self.__attrs:
+            #yield "    {line}{sep}".format(
+            #    line=attr,
+            #    sep=self.SEPARATPOR
+            #)
+            for line in attr:
+                yield "    {line}{sep}".format(
+                    line=line,
+                    sep=self.SEPARATPOR
+                )
+        if self.__with_semicolon:
+            yield "};"
+        else:
+            yield "}"
+
 
 
 class Enum(Grouping):
