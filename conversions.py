@@ -7,6 +7,7 @@ Functions for converting nodes of the python ast to nodes of the c ast.
 from utils import *
 from features import *
 
+import cast
 import cgen
 import ast
 import extended_cgen
