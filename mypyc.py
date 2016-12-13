@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import ast
-import cgen
 import os
 import subprocess
 
