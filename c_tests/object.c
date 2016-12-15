@@ -1,33 +1,36 @@
 #include "mypyc.h"
 
-#define CURRENT_OBJ OBJ_NAME(object)
 
 /**
  * Method declarations
  */
-static void __init__(CURRENT_OBJ* self);
-static string_object* __str__(CURRENT_OBJ* self);
+static void __init__(object_object* self);
+static string_object* __str__(object_object* self);
+
 
 /**
  * Attributes
  */
 tuple_object l;
 
+
 /**
  * The actual object
  */
-const CURRENT_OBJ* const object = &(CURRENT_OBJ){
+const object_object* const object = &(object_object){
     &l,
     __init__,
     __str__,
 };
 
+
 /**
  * Method definitions
  */
 
-static void __init__(CURRENT_OBJ* self){}
+static void __init__(object_object* self){}
 
-static string_object* __str__(CURRENT_OBJ* self){
+static string_object* __str__(object_object* self){
     return NULL;
 }
+

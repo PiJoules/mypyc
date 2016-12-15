@@ -15,38 +15,42 @@ typedef struct list_object list_object;
 #define CLASS_PROPERTIES \
     tuple_object* parents;
 
-#define OBJ_NAME(name) name##_object
+
 
 /**
  * Object
  */
-#define OBJECT_ATTRIBUTES(name) \
-    CLASS_PROPERTIES \
-    void (*__init__)(OBJ_NAME(name)* self); \
-    string_object* (*__str__)(OBJ_NAME(name)* self);
 
 struct object_object {
-    OBJECT_ATTRIBUTES(object)
+    CLASS_PROPERTIES
+    void (*__init__)(object_object* self);
+    string_object* (*__str__)(object_object* self);
 };
 
 extern const object_object* const object;
 
-object_object* new_object(object_object* self);
+object_object* new_object();
 
 
 /**
- * List
+ * String
  */
-#define STRING_ATTRIBUTES \
-    OBJECT_ATTRIBUTES(string)
 
 struct string_object {
-    STRING_ATTRIBUTES
+    CLASS_PROPERTIES
+
+    // Attrs
+    char* value;
+            
+    // Methods
+    void (*__init__)(string_object* self, char* str);
+    string_object* (*__str__)(string_object* self);
 };
 
 extern const string_object* const string;
 
-object_object* new_object(object_object* self);
+string_object* new_string(char* str);
+string_object* empty_string();
 
 
 /**
@@ -65,8 +69,6 @@ object_object* new_object(object_object* self);
 /**
  * Tuple
  */
-#define TUPLE_ATTRIBUTES \
-    OBJECT_ATTRIBUTES
 
 struct tuple_object {
 
