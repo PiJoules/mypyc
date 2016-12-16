@@ -9,4 +9,13 @@
  */
 //object_object* new(object_object* self, tuple_object* varargs, dict_object* kwargs);
 
+
+string_object* str(object_object* obj);
+
+void del(void* obj);
+
+
+void print(string_object* obj);
+
+
 #endif

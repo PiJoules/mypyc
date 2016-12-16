@@ -4,21 +4,26 @@
  * Method declarations
  */
 void __init__(string_object* self, char* str);
+void __del__(string_object* self);
 string_object* __str__(string_object* self);
 
 /**
  * Attributes
  */
-tuple_object l;
+static class_properties props = {
+};
 
 /**
  * The actual object
  */
 const string_object* const string = &(string_object){
-    &l,
-    NULL,
-    __init__,
-    __str__,
+    .props=props,
+
+    .value=NULL,
+
+    .__init__=__init__,
+    .__del__=__del__,
+    .__str__=__str__,
 };
 
 string_object* new_string(char* str){
@@ -33,9 +38,16 @@ string_object* new_string(char* str){
  */
 
 void __init__(string_object* self, char* str){
+    self->value = (char*)malloc(strlen(str));
+    strcpy(self->value, str);
+}
+
+void __del__(string_object* self){
+    free(self->value);
+    free(self);
 }
 
 string_object* __str__(string_object* self){
-    return NULL;
+    return self;
 }
 

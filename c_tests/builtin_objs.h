@@ -11,10 +11,10 @@ typedef struct tuple_object tuple_object;
 typedef struct dict_object dict_object;
 typedef struct list_object list_object;
 
+typedef struct class_properties class_properties;
 
-#define CLASS_PROPERTIES \
-    tuple_object* parents;
-
+struct class_properties {
+};
 
 
 /**
@@ -22,8 +22,10 @@ typedef struct list_object list_object;
  */
 
 struct object_object {
-    CLASS_PROPERTIES
+    class_properties props;
+
     void (*__init__)(object_object* self);
+    void (*__del__)(object_object* self);
     string_object* (*__str__)(object_object* self);
 };
 
@@ -37,13 +39,14 @@ object_object* new_object();
  */
 
 struct string_object {
-    CLASS_PROPERTIES
+    class_properties props;
 
     // Attrs
     char* value;
             
     // Methods
     void (*__init__)(string_object* self, char* str);
+    void (*__del__)(string_object* self);
     string_object* (*__str__)(string_object* self);
 };
 
@@ -70,9 +73,13 @@ string_object* empty_string();
  * Tuple
  */
 
-struct tuple_object {
-
-};
+//struct tuple_object {
+//
+//};
+//
+//extern const tuple_object* const tuple;
+//
+//tuple_object* new_tuple(int, ...);
 
 
 ///**

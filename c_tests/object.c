@@ -5,22 +5,26 @@
  * Method declarations
  */
 static void __init__(object_object* self);
+static void __del__(object_object* self);
 static string_object* __str__(object_object* self);
 
 
 /**
  * Attributes
  */
-tuple_object l;
+static class_properties props = {
+};
 
 
 /**
  * The actual object
  */
 const object_object* const object = &(object_object){
-    &l,
-    __init__,
-    __str__,
+    .props=props,
+
+    .__init__=__init__,
+    .__str__=__str__,
+    .__del__=__del__,
 };
 
 
@@ -29,8 +33,9 @@ const object_object* const object = &(object_object){
  */
 
 static void __init__(object_object* self){}
+static void __del__(object_object* self){}
 
 static string_object* __str__(object_object* self){
-    return NULL;
+    return new_string("object");
 }
 
