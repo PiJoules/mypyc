@@ -5,16 +5,34 @@ Objects will be represented by structs that contain methods, attributes, and cla
 Classes will be structs containing 3 nested structs.
 
 ```
-struct some_base_class {
+struct {object}_t {
+    class_properties props;
+    ...
+    Properties/methods
+    ...
 };
 ```
+
+Where `class_properties` is another struct that all classes share and is predefined. This will contain info about the class that is set at compile time and will be available at runtime.
+
+
+### Methods and Properties
+All methods and properties are scattered in the class in no particular order, as long as all the methods and properties retain the same order when inheriting from another class and all properties and methods are of the same size. The size part is accomplished by having all methods be pointers and the order of the properties is maintained by the python to c compiler.
+
+
+### Inheritance and Overriding
+Custom defined classes that inherit or override methods have their attributes tracked by the compiler to retain the order. Any overrides in methods are also tracked by the compiler, keeping the order of methods the same, but chaning the return type and arguments approproately.
 
 
 ### Compile Time Class Definition
 Classes for now will be created at compile time instead of runtime as in python. The consequences of this include the "__new__" method not being evaluated at runtime as it normally would in python. This could possibly be alieviated by running the code in python space during the compiling of python to c to attempt to evaluate the __new__ code before c compilation.
 
 
-### Referencing
+## Arguments
+
+
+
+## Referencing
 All periods in python representing calling a method or referenceing an object in another object will be replaced by pointer dereferencing.
 
 Example:
