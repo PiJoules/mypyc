@@ -1,4 +1,18 @@
 ## Objects and Classes
+Objects will be represented by structs that contain methods, attributes, and class properties.
+
+### Class Structure
+Classes will be structs containing 3 nested structs.
+
+```
+struct some_base_class {
+};
+```
+
+
+### Compile Time Class Definition
+Classes for now will be created at compile time instead of runtime as in python. The consequences of this include the "__new__" method not being evaluated at runtime as it normally would in python. This could possibly be alieviated by running the code in python space during the compiling of python to c to attempt to evaluate the __new__ code before c compilation.
+
 
 ### Referencing
 All periods in python representing calling a method or referenceing an object in another object will be replaced by pointer dereferencing.
@@ -76,7 +90,7 @@ compiles to
 obj->method(obj, arg)
 
 
-from pack import mod.obj
+from pack import mod
 mod.obj.method(arg)
 
 compiles to
@@ -86,7 +100,7 @@ mod->obj->method(mod->obj, arg)
 ```
 
 
-#### Relative Imports
+### Relative Imports
 Imports starting with . or .. represent relative imports in which case, the include macro will use double quotes instead of triangle brackets.
 
 ```
@@ -108,7 +122,7 @@ compiles to
 obj->method(obj, arg)
 
 
-from .pack import mod.obj
+from .pack import mod
 pack.obj.method(arg)
 
 compiles to
@@ -117,7 +131,7 @@ compiles to
 mod->obj->method(mod->obj, arg)
 
 
-from ..pack import mod.obj
+from ..pack import mod
 mod.obj.method(arg)
 
 compiles to
@@ -125,3 +139,40 @@ compiles to
 #include "../pack/mod.h"
 mod->obj->method(mod->obj, arg)
 ```
+
+
+### Import As
+Rules are same as the previously defined import rules, but a new object is created of the same type that is renamed to the `as` target.
+
+
+```
+from mod import obj as obj2
+obj2.method(arg)
+
+compiles to
+
+#include <mod/obj.h>
+obj_type obj2 = obj;
+obj2->method(obj2, arg)
+
+
+from pack.mod import obj as obj2
+obj2.method(arg)
+
+compiles to
+
+#include <pack/mod/obj.h>
+obj_type obj2 = obj;
+obj2->method(obj2, arg)
+
+
+import pack.nested_pack.mod as mod2
+mod2.obj.method(arg)
+
+compiles to
+
+#include <package_pack.h>
+mod_type mod2 = pack->nested_pack->mod;
+mod2->obj->method(pack->nested_pack->nod->obj, arg)
+```
+
