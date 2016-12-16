@@ -12,7 +12,7 @@ static string_object* __str__(object_object* self);
 /**
  * Attributes
  */
-static class_properties props = {
+static class_properties _props = {
 };
 
 
@@ -20,7 +20,7 @@ static class_properties props = {
  * The actual object
  */
 const object_object* const object = &(object_object){
-    .props=props,
+    .props=NULL,
 
     .__init__=__init__,
     .__str__=__str__,
@@ -32,8 +32,12 @@ const object_object* const object = &(object_object){
  * Method definitions
  */
 
-static void __init__(object_object* self){}
-static void __del__(object_object* self){}
+static void __init__(object_object* self){
+    printf("object __init__\n");
+}
+static void __del__(object_object* self){
+    printf("object del\n");
+}
 
 static string_object* __str__(object_object* self){
     return new_string("object");

@@ -22,7 +22,7 @@ struct class_properties {
  */
 
 struct object_object {
-    class_properties props;
+    class_properties* props;
 
     void (*__init__)(object_object* self);
     void (*__del__)(object_object* self);
@@ -39,15 +39,15 @@ object_object* new_object();
  */
 
 struct string_object {
-    class_properties props;
+    class_properties* props;
 
     // Attrs
-    char* value;
             
     // Methods
     void (*__init__)(string_object* self, char* str);
     void (*__del__)(string_object* self);
     string_object* (*__str__)(string_object* self);
+    char* value;
 };
 
 extern const string_object* const string;
