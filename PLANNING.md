@@ -29,6 +29,144 @@ Classes for now will be created at compile time instead of runtime as in python.
 
 
 ## Arguments
+Arguments are either positional or keyword arguments. Functions are able to accept a finite of positional/keyword args unless they choose to add *args and **kwargs to the function definition. In this case, they can take an unlimited amount of positional or keyword args that are available to the function as a tuple of args and a dict respectively. Extra positional args are given in the tuple and extra keyword args are given in the dict.
+
+To alleviate variable positional arguments, all function calls will end with an object that indicates the end of an argument if it accepts variable arguments. For this, a check will need to be done to see if the function takes variable arguments.
+
+
+### Only Positional
+```
+def func(arg1, arg2):
+    pass
+
+func(1, 2)
+
+compiles to
+
+void func(int arg1, int arg2){}
+func(1, 2)
+```
+
+### Only Keyword
+```
+def func(arg1=1, arg2=2):
+    pass
+
+func(arg2=3)
+
+compiles to
+
+#define func(...) func_unpack((struct func_kwargs){.arg1=1, .arg2=2, __VA_ARGS__})
+void func_unpack(struct func_kwargs kwargs){
+    return func_base(kwargs.arg1, kwargs.arg2);
+}
+void func_base(int arg1, int arg2){}
+func1(.arg2=3)
+```
+
+
+### Both
+```
+def func(arg1, arg2, arg3=1, arg4=2):
+    pass
+
+func(val1, val2, arg4=4)
+
+compiles to
+
+#define func(arg1, arg2, ...) func_unpack(arg1, arg2, (struct func_kwargs){.arg3=1, .arg4=2, __VA_ARGS__})
+void func_unpack(int arg1, int arg2, struct kwargs kwargs){
+    return func_base(arg1, arg2, kwargs.arg3, kwargs.arg4);
+}
+void func_base(int arg1, int arg2, int arg3, int arg4){}
+func(val1, val2, .arg4=4)
+```
+
+
+### Extra Positional (Variable Args)
+The VAR_ARGS_START is inserted at the position where the positional and keyword arguments end. This can be determined in the ast. The VAR_ARGS_END is placed at the end of the funciton call.
+The VAR_ARGS_START is required in case the function has no other positional arguments and only contains variable arguments.
+
+```
+def func(arg1, arg2, *args):
+    # Able to access args as a tuple
+    pass
+
+func(1, 2, 3, 4)
+
+compiles to
+
+
+// Compiler library function
+tuple_t* new_tuple_from_va_list(va_list args){
+    // Creates a tuple of objects up until VAR_ARGS_END is found
+    object_t* obj = va_arg(args, object_t*);
+    list_t* lst = empty_list();
+    while (obj != VAR_ARGS_END){
+        if (obj == starred){
+            lst.merge(obj);
+        }
+        else {
+            lst->append(obj);
+            obj = va_arg(args, object_t*);
+        }
+    }
+    return new_tuple(lst);
+}
+
+void func(int arg1, int arg2, va_start_t* args_start, ...){
+    # Create tuple from va_list
+    va_list args;
+    va_start(args, args_start);
+    tuple_t* tup_args = new_tuple_from_va_list(args);
+    va_end(args);
+    return func_base(arg1, arg2, tup_args);
+}
+void func_base(int arg1, int arg2, tuple_t* args){}
+func(1, 2, VAR_ARGS_START, 3, 4, VAR_ARGS_END)
+```
+
+### Starred Args
+Will need to check on the python ast for the version since the call args change between 3.4 and 3.5.
+Check greensnakes for the documentation for the function Call node.
+
+```
+def func(arg1, arg2, *args):
+    # Able to access args as a tuple
+    pass
+
+func(1, 2, 3, 4, *(5, 6, 7))
+
+compiles to
+
+
+void func(int arg1, int arg2, va_start_t* args_start, ...){
+    # Create tuple from va_list
+    va_list args;
+    va_start(args, args_start);
+    tuple_t* tup_args = new_tuple_from_va_list(args);
+    va_end(args);
+    return func_base(arg1, arg2, tup_args);
+}
+void func_base(int arg1, int arg2, tuple_t* args){}
+func(1, 2, VAR_ARGS_START, 3, 4, starred(5, 6, 7), VAR_ARGS_END)
+```
+
+
+### Extra Keyword
+```
+def func(arg1=1, arg2=2, **kwargs):
+    # Able to access kwargs as a dict
+    pass
+
+func(arg4=10, arg2=3)  # Order does not matter for keyword args
+
+compiles to
+
+
+void func_base(int arg1, int arg2, dict_t* kwargs){}
+func(.arg4=10, arg2=3)
+```
 
 
 
