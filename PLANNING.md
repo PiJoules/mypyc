@@ -84,6 +84,8 @@ func(val1, val2, .arg4=4)
 
 
 ### Extra Positional (Variable Args)
+Since starred arguments can be mixed with variable arguments passed to a function call, all positional arguments will need to be packed into a tuple, then unpacked into the actual arguments.
+
 The VAR_ARGS_START is inserted at the position where the positional and keyword arguments end. This can be determined in the ast. The VAR_ARGS_END is placed at the end of the funciton call.
 The VAR_ARGS_START is required in case the function has no other positional arguments and only contains variable arguments.
 
@@ -108,22 +110,22 @@ tuple_t* new_tuple_from_va_list(va_list args){
         }
         else {
             lst->append(obj);
-            obj = va_arg(args, object_t*);
         }
+        obj = va_arg(args, object_t*);
     }
     return new_tuple(lst);
 }
 
-void func(int arg1, int arg2, va_start_t* args_start, ...){
+void func(va_start_t* args_start, ...){
     # Create tuple from va_list
     va_list args;
     va_start(args, args_start);
     tuple_t* tup_args = new_tuple_from_va_list(args);
     va_end(args);
-    return func_base(arg1, arg2, tup_args);
+    return func_base(tup_args.get(0), tup_args.get(1), tup_args.slice(2));
 }
 void func_base(int arg1, int arg2, tuple_t* args){}
-func(1, 2, VAR_ARGS_START, 3, 4, VAR_ARGS_END)
+func(VAR_ARGS_START, 1, 2, 3, 4, VAR_ARGS_END)
 ```
 
 ### Starred Args
@@ -139,21 +141,22 @@ func(1, 2, 3, 4, *(5, 6, 7))
 
 compiles to
 
-
-void func(int arg1, int arg2, va_start_t* args_start, ...){
-    # Create tuple from va_list
-    va_list args;
-    va_start(args, args_start);
-    tuple_t* tup_args = new_tuple_from_va_list(args);
-    va_end(args);
-    return func_base(arg1, arg2, tup_args);
-}
 void func_base(int arg1, int arg2, tuple_t* args){}
-func(1, 2, VAR_ARGS_START, 3, 4, starred(5, 6, 7), VAR_ARGS_END)
+func(VAR_ARGS_START, 1, 2, 3, 4, starred(new_tuple(VAR_ARGS_START, 5, 6, 7, VAR_ARGS_END)), VAR_ARGS_END)
+
+
+func(*(1, 2, 3))
+
+compiles to
+
+void func_base(int arg1, int arg2, tuple_t* args){}
+func(VAR_ARGS_START, starred(1, 2, 3), VAR_ARGS_END)
 ```
 
 
 ### Extra Keyword
+The kwargs will need to be packed into a dictionary if variable keyword arguments are accepted in the function
+
 ```
 def func(arg1=1, arg2=2, **kwargs):
     # Able to access kwargs as a dict
@@ -163,9 +166,91 @@ func(arg4=10, arg2=3)  # Order does not matter for keyword args
 
 compiles to
 
+// Compiler library function
+dict_t* new_dict_from_va_list(va_list args){
+    // Creates a dict of objects up until VAR_ARGS_END is found
+    object_t* obj = va_arg(args, object_t*);
+    dict_t* d = empty_dict();
+    while (obj != VAR_ARGS_END){
+        if (obj == double_starred){
+            d->merge_inplace(d, obj);
+        }
+        else {
+            dict_item_t* item = (dict_item_t*)obj;
+            d->insert(d, item->key, item->value);
+        }
+        obj = va_arg(args, object_t*);
+    }
+    return d;
+}
 
+#define DICT_ITEM(key, val) new_dict_item(key, val)
+void func(va_start_t* args_start, ...){
+    va_list args;
+    va_start(args, args_start);
+    dict_t* d_passed = new_dict_from_va_list(args);
+    // default_args is a dictionary made beforehand that contains the default values of the args
+    dict_t* d = default_args->merge(default_args, d_passed);
+    va_end(args);
+    return func_base(d.pop("arg1"), d.pop("arg2"), d);
+}
 void func_base(int arg1, int arg2, dict_t* kwargs){}
-func(.arg4=10, arg2=3)
+func(VAR_ARGS_START, DICT_ITEM("arg4", 10), DICT_ITEM("arg2", 3), VAR_ARGS_END);
+```
+
+### All Arg Types
+```
+def func(arg1, arg2, arg3=1, arg4=2, *args, **kwargs):
+    pass
+func(1, 2, arg3=3, arg4=4, *(1, 2, 3), **{"arg5": 5, "arg6": 6})
+
+compiles to
+
+
+// Wrapper for variable argument signs starting with VAR_ARGS_START and VAR_ARGS_END
+#define VAR_ARGS(...) VAR_ARGS_START, __VA_ARGS__, VAR_ARGS_END
+#define DICT_ITEM(key, val) new_dict_item(key, val)
+// pack_args wraps the container in a special class for holding packed variable positional args
+// pack_kwargs wraps the dictionary in a special class for holding packed variable keyword args
+void func(va_start_t* start, ...){
+    va_list args_list;
+    va_start(args_list, start);
+
+    // default_kwargs is a dictionary created beforehand that contains the default argument values
+    list_t* temp_lst = empty_list();
+    dict_t* kwargs = empty_dict();
+    object_t* obj = va_arg(args, object_t*);
+    while (obj != VAR_ARGS_END){
+        if (isinstance(obj, packed_args)){
+            temp_lst->merge_inplace(temp_lst, ((packed_args_t*)obj)->container);
+        }
+        else if (isinstance(obj, packed_kwargs)){
+            kwargs->extend(kwargs, ((packed_kwargs_t*)obj)->container);
+        }
+        else if (isinstance(obj, dict_item)){
+            dict_item_t* item = (dict_item_t*)obj;
+            d->insert(d, item->key, item->value);
+        }
+        else {
+            // Positional argument
+            temp_lst->append(temp_lst, obj);
+        }
+        obj = va_arg(args, object_t*);
+    }
+
+    va_end(args_list);
+
+    // The pop methods removes the element at the index specified by the first argument
+    // and returns the second argument if the index is not in the container.
+    tuple_t* args = tuple(temp_lst);
+    return func_base(args.pop(0), args.pop(1),
+        kwargs.pop("arg3", args.pop(2, 1)),
+        kwargs.pop("arg4", args.pop(3, 2)),
+        args, kwargs
+    );
+}
+void func_base(int arg1, int arg2, int arg3, int arg4, tuple_t* args, dict_t* kwargs){}
+func(VAR_ARGS(1, 2, DICT_ITEM("arg3", 3), DICT_ITEM("arg4", 4), pack_args(new_tuple(VAR_ARGS(1, 2, 3))), pack_kwargs(new_dict(VAR_ARGS(DICT_ITEM("arg5", 5), DICT_ITEM("arg6", 6))))))
 ```
 
 
