@@ -17,59 +17,24 @@ struct class_properties {
 };
 
 
+#define METHOD_WRAPPER_ATTRS \
+    class_properties* props; \
+    size_t ref_count; \
+    object_t* __init__; \
+    object_t* __del__; \
+    object_t* __str__;
+
+
 /**
  * Object
  */
-
-struct object_t {
-    class_properties* props;
-
-    // Props
-    size_t ref_count;
-
-    // Methods
-    //void (*__init__)(object_t* self);
-    //void (*__del__)(object_t* self);
-    //string_t* (*__str__)(object_t* self);
-    object_t* (*__exec__)();
-    object_t* __init__;
-    object_t* __del__;
-    object_t* __str__;
-};
-
-object_t* object();
+#include "object.h"
 
 
 /**
  * String
  */
-
-struct string_t {
-    class_properties* props;
-
-    // Object props
-    size_t ref_count;
-
-    // Methods
-    void (*__init__)(string_t* self, char* str);
-    void (*__del__)(string_t* self);
-    string_t* (*__str__)(string_t* self);
-
-    // String attrs
-    char* value;
-};
-
-string_t* str_literal(char* str);
-
-struct str_kwargs {
-    object_t* object;
-    object_t* encoding;
-    object_t* errors;
-};
-string_t* str(struct str_kwargs kwargs);
-string_t* str_base(object_t* object, object_t* encoding, object_t* errors);
-
-string_t* empty_string();
+#include "string_obj.h"
 
 
 /**
