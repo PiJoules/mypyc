@@ -5,11 +5,11 @@
 /**
  * Objects to be used
  */
-typedef struct object_object object_object;
-typedef struct string_object string_object;
-typedef struct tuple_object tuple_object;
-typedef struct dict_object dict_object;
-typedef struct list_object list_object;
+typedef struct object_t object_t;
+typedef struct string_t string_t;
+//typedef struct tuple_object tuple_object;
+//typedef struct dict_object dict_object;
+//typedef struct list_object list_object;
 
 typedef struct class_properties class_properties;
 
@@ -21,39 +21,55 @@ struct class_properties {
  * Object
  */
 
-struct object_object {
+struct object_t {
     class_properties* props;
 
-    void (*__init__)(object_object* self);
-    void (*__del__)(object_object* self);
-    string_object* (*__str__)(object_object* self);
+    // Props
+    size_t ref_count;
+
+    // Methods
+    //void (*__init__)(object_t* self);
+    //void (*__del__)(object_t* self);
+    //string_t* (*__str__)(object_t* self);
+    object_t* (*__exec__)();
+    object_t* __init__;
+    object_t* __del__;
+    object_t* __str__;
 };
 
-extern const object_object* const object;
-
-object_object* new_object();
+object_t* object();
 
 
 /**
  * String
  */
 
-struct string_object {
+struct string_t {
     class_properties* props;
 
-    // Attrs
-            
+    // Object props
+    size_t ref_count;
+
     // Methods
-    void (*__init__)(string_object* self, char* str);
-    void (*__del__)(string_object* self);
-    string_object* (*__str__)(string_object* self);
+    void (*__init__)(string_t* self, char* str);
+    void (*__del__)(string_t* self);
+    string_t* (*__str__)(string_t* self);
+
+    // String attrs
     char* value;
 };
 
-extern const string_object* const string;
+string_t* str_literal(char* str);
 
-string_object* new_string(char* str);
-string_object* empty_string();
+struct str_kwargs {
+    object_t* object;
+    object_t* encoding;
+    object_t* errors;
+};
+string_t* str(struct str_kwargs kwargs);
+string_t* str_base(object_t* object, object_t* encoding, object_t* errors);
+
+string_t* empty_string();
 
 
 /**

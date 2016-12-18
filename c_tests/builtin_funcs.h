@@ -3,19 +3,20 @@
 
 #include "mypyc.h"
 
-/**
- * def new(self, arg1, arg2, kwarg1=val1, kwarg2=val2, *args, **kwargs)
- * func call: new(object, arg1, arg2, .kwarg1=1, kwarg2=2, kwarg3=3)
- */
-//object_object* new(object_object* self, tuple_object* varargs, dict_object* kwargs);
+#define INCREF(obj) obj->ref_count++
+#define DECREF(obj) \
+    do { \
+        obj->ref_count--; \
+        if (!(obj->ref_count)){ \
+            del(obj); \
+        } \
+    } while(0);
 
+#define CALL(func, ...) func->__exec__(__VA_ARGS__)
 
-string_object* str(object_object* obj);
+void del(object_t* obj);
 
-void del(void* obj);
-
-
-void print(string_object* obj);
+void print(string_t* obj);
 
 
 #endif

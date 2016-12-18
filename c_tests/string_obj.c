@@ -3,9 +3,9 @@
 /**
  * Method declarations
  */
-static void __init__(string_object* self, char* str);
-static void __del__(string_object* self);
-static string_object* __str__(string_object* self);
+static void __init__(string_t* self, char* str);
+static void __del__(string_t* self);
+static string_t* __str__(string_t* self);
 
 /**
  * Attributes
@@ -16,22 +16,35 @@ static class_properties _props = {
 /**
  * The actual object
  */
-string_object _string = {
+static const string_t* const string_class = &(string_t){
     .props=NULL,
 
-    .value=NULL,
+    .ref_count=0,
 
     .__init__=__init__,
     .__del__=__del__,
     .__str__=__str__,
-};
-const string_object* const string = &_string;
 
-string_object* new_string(char* str){
-    string_object* new_str = (string_object*)malloc(sizeof(string_object));
-    memcpy(new_str, string, sizeof(string_object));
+    .value=NULL,
+};
+
+/**
+ * Constructors
+ */
+string_t* str(struct str_kwargs kwargs){
+    return str_base(kwargs.object, kwargs.encoding, kwargs.errors);
+}
+
+string_t* str_base(object_t* object, object_t* encoding, object_t* errors){
+    return object->__str__(object);
+}
+
+string_t* str_literal(char* str){
+    string_t* new_str = (string_t*)malloc(sizeof(string_t));
+    memcpy(new_str, string_class, sizeof(string_t));
+    INCREF(new_str);
+
     new_str->__init__(new_str, str);
-    printf("created new str: %s\n", str);
     return new_str;
 }
 
@@ -39,23 +52,19 @@ string_object* new_string(char* str){
  * Method definitions
  */
 
-static void __init__(string_object* self, char* str){
+static void __init__(string_t* self, char* str){
     size_t len = strlen(str);
     self->value = (char*)malloc(len + 1);
     strncpy(self->value, str, len);
     self->value[len] = '\0';
-    printf("string __init__\n");
-    printf("str: %s\n", str);
-    printf("val: %s\n", self->value);
 }
 
-static void __del__(string_object* self){
+static void __del__(string_t* self){
     free(self->value);
-    printf("string del\n");
     free(self);
 }
 
-static string_object* __str__(string_object* self){
+static string_t* __str__(string_t* self){
     return self;
 }
 
