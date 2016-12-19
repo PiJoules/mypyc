@@ -55,3 +55,7 @@ $ nosetests
 - Memoize expression type extractions
 - Support function types/assignment
 - Submit pull request to cgen for adding types
+
+## Timing Comparisons
+- https://fengmk2.com/blog/2011/fibonacci/nodejs-python-php-ruby-lua.html
+- http://notes-on-cython.readthedocs.io/en/latest/fibo_speed.html
