@@ -7,6 +7,7 @@
  */
 typedef struct object_t object_t;
 typedef struct string_t string_t;
+typedef struct int_t int_t;
 //typedef struct tuple_object tuple_object;
 //typedef struct dict_object dict_object;
 //typedef struct list_object list_object;
@@ -22,7 +23,8 @@ struct class_properties {
     size_t ref_count; \
     object_t* __init__; \
     object_t* __del__; \
-    object_t* __str__;
+    object_t* __str__; \
+    object_t* __int__;
 
 
 /**
@@ -35,6 +37,9 @@ struct class_properties {
  * String
  */
 #include "string_obj.h"
+
+
+#include "int_obj.h"
 
 
 /**

@@ -19,6 +19,12 @@ struct string__str__method_wrapper {
     METHOD_WRAPPER_ATTRS
 };
 
+typedef struct string__int__method_wrapper string__int__method_wrapper;
+struct string__int__method_wrapper {
+    int_t* (*__exec__)(string_t* self);
+    METHOD_WRAPPER_ATTRS
+};
+
 struct string_t {
     string_t* (*__exec__)(object_t* object, string_t* encoding, string_t* errors);
 
@@ -31,6 +37,7 @@ struct string_t {
     const string__init__method_wrapper* __init__;
     const string__del__method_wrapper* __del__;
     const string__str__method_wrapper* __str__;
+    const string__int__method_wrapper* __int__;
 
     char* value;
 };

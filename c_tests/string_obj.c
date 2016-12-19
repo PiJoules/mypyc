@@ -85,7 +85,6 @@ static const string__del__method_wrapper string__del__ = {
 
 
 static string_t* __str____call__(string_t* self){
-    //return CALL(str, (object_t*)self, (string_t*)str_default_kwarg_encoding, (string_t*)str_default_kwarg_errors);
     return str_literal(self->value);
 }
 

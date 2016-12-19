@@ -24,3 +24,4 @@ void print(object_t* obj){
     printf("%s\n", tmp_obj_str->value);
     DECREF(tmp_obj_str);
 }
+

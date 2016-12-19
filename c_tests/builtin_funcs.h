@@ -30,4 +30,5 @@ void del(object_t* obj);
 void print(object_t* obj);
 
 
+
 #endif
