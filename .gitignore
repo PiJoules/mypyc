@@ -1,11 +1,17 @@
 *.exe
+*.build/
+tmp/
+test
 *.out
 *.o
 test_dir/
 pc-venv/
-samples/*
 
-!samples/*.pc
+tests/integration_tests/expected_outputs/*.output
+
+
+sample_python_scripts/*
+!sample_python_scripts/*.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -24,7 +30,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+#lib/
 lib64/
 parts/
 sdist/
