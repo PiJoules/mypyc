@@ -5,6 +5,8 @@ import cast
 import ast_utils
 import ast
 import inference as inf
+import os
+import subprocess
 
 
 def convert_type(infer_type):
@@ -29,14 +31,14 @@ class Compiler(object):
 
         # Find all types
         self.__env = inf.Environment(init_node=py_ast)
-        self.__c_ast = self.parse(self.__ast)
+        self.__c_ast = self.parse_statement(self.__ast)
 
     def parse_sequence(self, seq):
         """
         Returns:
             list[cast.Node]
         """
-        return [self.parse(node) for node in seq]
+        return [self.parse_statement(node) for node in seq]
 
     def parse_module(self, node):
         """
@@ -47,7 +49,7 @@ class Compiler(object):
 
     def parse_func_def(self, node):
         """
-        Just parse positional args for now.
+        Just parse_statement positional args for now.
 
         Returns:
             cast.FunctionDefinition
@@ -93,7 +95,7 @@ class Compiler(object):
         return func
 
     def parse_return(self, node):
-        return cast.Return(self.parse(node.value))
+        return cast.Return(self.parse_expr(node.value))
 
     def parse_num(self, node):
         n = node.n
@@ -106,8 +108,21 @@ class Compiler(object):
 
         raise RuntimeError("Unknown num literal type for number of type {}".format(type(n)))
 
-    def parse(self, node):
+    def parse_expr(self, node):
+        if isinstance(node, ast.Num):
+            return self.parse_num(node)
+        elif isinstance(node, ast.Expr):
+            return self.parse_expr(node.value)
+        elif isinstance(node, ast.Str):
+            return cast.StringLiteral(node.s)
+
+        raise RuntimeError("Unable to parse expression for node {}".format(node))
+
+    def parse_statement(self, node):
         """
+        Args:
+            node (ast node)
+
         Returns:
             cast.Node
         """
@@ -117,10 +132,10 @@ class Compiler(object):
             return self.parse_func_def(node)
         elif isinstance(node, ast.Return):
             return self.parse_return(node)
-        elif isinstance(node, ast.Num):
-            return self.parse_num(node)
+        elif isinstance(node, ast.Expr):
+            return cast.ExprStmt(self.parse_expr(node))
 
-        raise NotImplementedError("Unable to parse node {}".format(node))
+        raise NotImplementedError("Unable to parse statement {}".format(node))
 
     def ast(self):
         return self.__c_ast
@@ -136,14 +151,43 @@ def compile_file(filename):
         return compile_code(f.read())
 
 
-def main():
-    code = """
-def main():
-    return 0
-    """
+def compile_c_file(filename, compiler="gcc", standard="c11", output=None):
+    if output is None:
+        output, ext = os.path.splitext(filename)
 
-    compiler = Compiler.from_code(code)
-    print(compiler.ast())
+    files = " ".join([filename])
+
+    cmd = "{compiler} -std={standard} -o {output} {files}".format(**locals())
+    assert not subprocess.check_call(cmd.split())
+
+
+def save_c_code(c_ast, out_filename):
+    with open(out_filename, "w") as f:
+        f.write(str(c_ast))
+
+
+def get_args():
+    """Argument parser."""
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+
+    parser.add_argument("filename", help="Python file to compiler.")
+    parser.add_argument("-o", "--output",
+                        help="Output excutable name.")
+
+    return parser.parse_args()
+
+
+def main():
+    args = get_args()
+
+    if args.filename:
+        c_ast = compile_file(args.filename)
+        base_name, ext = os.path.splitext(args.filename)
+        c_file = base_name + ".c"
+        save_c_code(c_ast, c_file)
+        compile_c_file(c_file)
+
 
     return 0
 
