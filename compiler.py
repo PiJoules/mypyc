@@ -321,7 +321,7 @@ def compile_c_file(filename, compiler="g++", standard="c++11", output=None):
 
     files = " ".join([filename])
 
-    cmd = "{compiler} -std={standard} -o {output} {files}".format(**locals())
+    cmd = "{compiler} -std={standard} -O2 -o {output} {files}".format(**locals())
     assert not subprocess.check_call(cmd.split())
 
 
